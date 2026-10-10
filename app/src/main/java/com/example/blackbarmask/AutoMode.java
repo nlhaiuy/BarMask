@@ -43,9 +43,10 @@ public final class AutoMode {
             // —— 本地播放器 ——
             "org.videolan.vlc",              // VLC
             "com.mxtech.videoplayer.ad",     // MX Player
+            "com.mxtech.videoplayer.pro",    // MX Player 专业版
             // —— 看番 ——
             "me.him188.ani",                 // Animeko
-            "cx.xs.open",                    // AniCh
+            "app.anich",                     // AniCh
             "com.predidit.kazumi",           // Kazumi
             "tw.com.gamer.android.animad",   // 巴哈姆特动画疯
             // —— 直播 ——
