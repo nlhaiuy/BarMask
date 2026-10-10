@@ -22,26 +22,20 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 
-/** 在屏幕左右两侧各盖一块白色悬浮窗，遮住 4:3 视频两边的黑边。 */
+/** 在屏幕左右两侧各盖一块白色悬浮窗，遮住横屏视频两边的黑边。 */
 public class MaskService extends Service {
     public static final String PREFS = "mask_prefs";
     public static final String KEY_RATIO = "ratio";   // 视频宽高比，默认 4/3
     public static final String KEY_OFFSET = "offset"; // 微调(dp)，正数=遮罩变宽
+    public static final String KEY_LAYERS = "layers"; // 每侧叠几层(1~6)，系统把悬浮窗压成半透明时调大
+    public static final float DEFAULT_RATIO = 4f / 3f;
+    public static final int DEFAULT_LAYERS = 1;
+    public static final int MAX_LAYERS = 6;
 
     private static final String CHANNEL_ID = "mask";
     public static boolean running = false;
 
-    /** 默认视频比例，由各版本（4:3 / 16:9）的资源文件决定。 */
-    public static float defaultRatio(Context c) {
-        try {
-            return Float.parseFloat(c.getString(R.string.default_ratio));
-        } catch (Exception e) {
-            return 4f / 3f;
-        }
-    }
-
     private WindowManager wm;
-    private static final int LAYERS = 1; // 每侧遮罩层数（第一个版本为 1；若系统把悬浮窗压成半透明，可改成 4）
     private final java.util.List<View> bars = new java.util.ArrayList<>();
 
     @Override
@@ -55,7 +49,7 @@ public class MaskService extends Service {
         Notification n = new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("黑边遮罩运行中")
                 .setContentText("两侧黑边已变白")
-                .setSmallIcon(android.R.drawable.ic_menu_view)
+                .setSmallIcon(R.drawable.ic_tile)
                 .setOngoing(true)
                 .build();
         if (Build.VERSION.SDK_INT >= 34) {
@@ -98,14 +92,15 @@ public class MaskService extends Service {
         if (w <= h) return; // 竖屏不需要遮罩
 
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-        float ratio = sp.getFloat(KEY_RATIO, defaultRatio(this));
+        float ratio = sp.getFloat(KEY_RATIO, DEFAULT_RATIO);
+        int layers = Math.max(1, Math.min(MAX_LAYERS, sp.getInt(KEY_LAYERS, DEFAULT_LAYERS)));
         int offsetPx = Math.round(sp.getInt(KEY_OFFSET, 0) * m.density);
 
         int bar = Math.round((w - h * ratio) / 2f) + offsetPx;
         bar = Math.max(0, Math.min(bar, w / 2));
         if (bar == 0) return;
 
-        for (int i = 0; i < LAYERS; i++) {
+        for (int i = 0; i < layers; i++) {
             bars.add(addBar(Gravity.TOP | Gravity.START, bar, h));
             bars.add(addBar(Gravity.TOP | Gravity.END, bar, h));
         }

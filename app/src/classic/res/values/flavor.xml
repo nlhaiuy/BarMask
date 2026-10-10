@@ -1,6 +1,0 @@
-<resources>
-    <string name="app_name">黑边变白</string>
-    <string name="app_title">4:3 视频黑边变白</string>
-    <string name="tile_label">黑边遮罩</string>
-    <string name="default_ratio">1.3333334</string>
-</resources>

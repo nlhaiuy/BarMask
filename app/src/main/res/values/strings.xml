@@ -1,4 +1,6 @@
 <resources>
+    <string name="app_name">黑边变白</string>
+    <string name="tile_label">黑边遮罩</string>
     <string name="shortcut_short">开关遮罩</string>
     <string name="shortcut_long">一键开关黑边遮罩</string>
 </resources>

@@ -3,14 +3,23 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 横屏的手机屏幕：白色两侧 + 深色视频区 + 播放三角 -->
+    <!-- 柔和投影 -->
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M34,38.5h40a6,6 0 0 1 6,6v24a6,6 0 0 1 -6,6h-40a6,6 0 0 1 -6,-6v-24a6,6 0 0 1 6,-6z" />
+    <!-- 白色横屏（两侧即“白色遮罩”） -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M34,36h40a6,6 0 0 1 6,6v24a6,6 0 0 1 -6,6h-40a6,6 0 0 1 -6,-6v-24a6,6 0 0 1 6,-6z" />
+    <!-- 深色视频区 -->
     <path
-        android:fillColor="#0F172A"
-        android:pathData="M40,36h28v36h-28z" />
+        android:fillColor="#0B1020"
+        android:pathData="M39,36h30v36h-30z" />
+    <!-- 圆形播放键 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M49,48.5l11,5.5l-11,5.5z" />
+        android:pathData="M47,54a7,7 0 1 0 14,0a7,7 0 1 0 -14,0z" />
+    <path
+        android:fillColor="#5B5BF0"
+        android:pathData="M52.3,50.6l6,3.4l-6,3.4z" />
 </vector>
