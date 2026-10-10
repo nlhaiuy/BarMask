@@ -91,7 +91,8 @@ public class MaskService extends Service {
 
     private View addBar(int gravity, int width, int height) {
         View v = new View(this);
-        v.setBackgroundColor(Color.WHITE);
+        v.setBackgroundColor(0xFFFFFFFF); // 不透明纯白
+        v.setAlpha(1f);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 width, height,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -101,6 +102,8 @@ public class MaskService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.OPAQUE);
+        lp.alpha = 1f;        // 窗口完全不透明
+        lp.dimAmount = 0f;
         lp.gravity = gravity;
         lp.x = 0;
         lp.y = 0;
