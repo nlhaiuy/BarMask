@@ -31,6 +31,15 @@ public class MaskService extends Service {
     private static final String CHANNEL_ID = "mask";
     public static boolean running = false;
 
+    /** 默认视频比例，由各版本（4:3 / 16:9）的资源文件决定。 */
+    public static float defaultRatio(Context c) {
+        try {
+            return Float.parseFloat(c.getString(R.string.default_ratio));
+        } catch (Exception e) {
+            return 4f / 3f;
+        }
+    }
+
     private WindowManager wm;
     private static final int LAYERS = 1; // 每侧遮罩层数（第一个版本为 1；若系统把悬浮窗压成半透明，可改成 4）
     private final java.util.List<View> bars = new java.util.ArrayList<>();
@@ -89,7 +98,7 @@ public class MaskService extends Service {
         if (w <= h) return; // 竖屏不需要遮罩
 
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-        float ratio = sp.getFloat(KEY_RATIO, 4f / 3f);
+        float ratio = sp.getFloat(KEY_RATIO, defaultRatio(this));
         int offsetPx = Math.round(sp.getInt(KEY_OFFSET, 0) * m.density);
 
         int bar = Math.round((w - h * ratio) / 2f) + offsetPx;

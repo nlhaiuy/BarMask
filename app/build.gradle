@@ -14,6 +14,17 @@ android {
         versionName "1.0"
     }
 
+    flavorDimensions "ratio"
+    productFlavors {
+        classic {            // 4:3 版本（原来的包名，覆盖安装不受影响）
+            dimension "ratio"
+        }
+        wide {               // 16:9 版本（独立包名，可与 4:3 版本同时安装）
+            dimension "ratio"
+            applicationIdSuffix ".wide"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false

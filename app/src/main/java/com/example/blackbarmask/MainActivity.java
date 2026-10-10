@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("4:3 视频黑边变白");
+        title.setText(getString(R.string.app_title));
         title.setTextSize(24);
         root.addView(title);
 
@@ -74,9 +74,9 @@ public class MainActivity extends Activity {
 
         RadioGroup rg = new RadioGroup(this);
         rg.setOrientation(RadioGroup.HORIZONTAL);
-        String[] names = {"4:3", "5:4", "3:2", "1:1"};
-        float[] vals = {4f / 3f, 5f / 4f, 3f / 2f, 1f};
-        float cur = sp.getFloat(MaskService.KEY_RATIO, 4f / 3f);
+        String[] names = {"16:9", "4:3", "16:10", "21:9", "5:4", "3:2", "1:1"};
+        float[] vals = {16f / 9f, 4f / 3f, 16f / 10f, 21f / 9f, 5f / 4f, 3f / 2f, 1f};
+        float cur = sp.getFloat(MaskService.KEY_RATIO, MaskService.defaultRatio(this));
         for (int i = 0; i < names.length; i++) {
             RadioButton rb = new RadioButton(this);
             rb.setText(names[i]);
@@ -88,7 +88,9 @@ public class MainActivity extends Activity {
             sp.edit().putFloat(MaskService.KEY_RATIO, vals[id - 1000]).apply();
             refresh();
         });
-        root.addView(rg);
+        android.widget.HorizontalScrollView hsv = new android.widget.HorizontalScrollView(this);
+        hsv.addView(rg);
+        root.addView(hsv);
 
         TextView ot = new TextView(this);
         ot.setPadding(0, pad, 0, 0);
