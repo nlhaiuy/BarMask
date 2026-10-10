@@ -50,6 +50,7 @@ public final class AutoMode {
             "tw.com.gamer.android.animad",   // 巴哈姆特动画疯
             // —— 直播 ——
             "com.xycz.simple_live",          // Simple Live
+            "com.slotsun.slive",             // SLive
             "air.tv.douyu.android",          // 斗鱼
             "com.duowan.kiwi",               // 虎牙
             "com.netease.cc",                // 网易CC

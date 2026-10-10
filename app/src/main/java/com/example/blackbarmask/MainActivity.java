@@ -1,6 +1,7 @@
 package com.example.blackbarmask;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -220,9 +221,14 @@ public class MainActivity extends Activity {
         if (guiding && awaitingReturn) {
             awaitingReturn = false;
             if (required(step) && applicable(step) && missing(step)) {
+                int failed = step;
                 guiding = false;
                 step = -1;
-                Toast.makeText(this, "这一步还没完成，可以点对应的那一行再试一次", Toast.LENGTH_LONG).show();
+                if (failed == 3) {
+                    showRestrictedHelp(); // 多半是“无障碍”被系统置灰了
+                } else {
+                    Toast.makeText(this, "这一步还没完成，可以点对应的那一行再试一次", Toast.LENGTH_LONG).show();
+                }
             } else {
                 advance();
             }
@@ -234,12 +240,12 @@ public class MainActivity extends Activity {
 
     private LinearLayout autoCard() {
         LinearLayout c = card();
-        c.addView(label("自动模式（白名单）"));
-        TextView hint = small("只在白名单里的软件中生效：打开其中的软件时自动开启白边，离开后自动关闭。");
+        c.addView(label("白名单模式"));
+        TextView hint = small("开启后，只在白名单里的软件中自动显示白边：打开这些软件时开启，离开后关闭。");
         hint.setPadding(0, 0, 0, dp(10));
         c.addView(hint);
-        addChips(c, new String[]{"关闭", "开启"}, 2, AutoMode.isEnabled(this) ? 1 : 0, pos -> {
-            boolean on = pos == 1;
+        addChips(c, new String[]{"开启", "关闭"}, 2, AutoMode.isEnabled(this) ? 0 : 1, pos -> {
+            boolean on = pos == 0;
             sp.edit().putBoolean(AutoMode.KEY_AUTO, on).apply();
             if (on && !AutoMode.isAccessibilityEnabled(this)) startGuide(); // 带你去开无障碍
             refreshAuto();
@@ -368,6 +374,8 @@ public class MainActivity extends Activity {
                     }
                     break;
                 default:
+                    // 开启成功后，白边会自己跳回前台，不用手动返回
+                    sp.edit().putBoolean(AutoAccessibilityService.KEY_RETURN, true).apply();
                     Toast.makeText(this, "在列表里找到“白边”并开启", Toast.LENGTH_LONG).show();
                     startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
             }
@@ -376,6 +384,22 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + getPackageName())));
         }
+    }
+
+    /** 无障碍没开成功：最常见的原因是系统对“非商店安装”的软件置灰了该选项。 */
+    private void showRestrictedHelp() {
+        new AlertDialog.Builder(this)
+                .setTitle("无障碍选项是灰色的？")
+                .setMessage("系统会限制非应用商店安装的软件。解除方法：\n\n"
+                        + "1. 点下面的“打开应用信息页”\n"
+                        + "2. 点右上角的 ⋮ 菜单\n"
+                        + "3. 选择“允许受限制的设置”\n"
+                        + "4. 返回白边，再点“一键设置权限”")
+                .setPositiveButton("打开应用信息页", (d, w) -> startActivity(new Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName()))))
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void startGuide() {
