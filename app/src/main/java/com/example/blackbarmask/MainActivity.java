@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
     private SharedPreferences sp;
     private float density;
     private TextView statusTv, btn;
-    private TextView accTv, listenTv, appsTv;
+    private TextView accTv, appsTv;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -209,8 +209,8 @@ public class MainActivity extends Activity {
 
     private LinearLayout autoCard() {
         LinearLayout c = card();
-        c.addView(label("自动模式"));
-        TextView hint = small("打开你选的视频软件、并且正在播放时，自动开启白边；退出或暂停太久后自动关闭。");
+        c.addView(label("自动模式（白名单）"));
+        TextView hint = small("只在白名单里的软件中生效：打开其中的软件时自动开启白边，离开后自动关闭。");
         hint.setPadding(0, 0, 0, dp(10));
         c.addView(hint);
         addChips(c, new String[]{"关闭", "开启"}, 2, AutoMode.isEnabled(this) ? 1 : 0, pos -> {
@@ -223,7 +223,6 @@ public class MainActivity extends Activity {
             refreshAuto();
         });
         accTv = row(c, v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-        listenTv = row(c, v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         appsTv = row(c, v -> startActivity(new Intent(this, AppPickerActivity.class)));
         TextView tip = small("如果系统把“无障碍”选项置灰：到 手机设置 → 应用 → 白边 → 右上角菜单，"
                 + "选择“允许受限制的设置”，再回来开启。");
@@ -235,15 +234,12 @@ public class MainActivity extends Activity {
     private void refreshAuto() {
         if (accTv == null) return;
         boolean acc = AutoMode.isAccessibilityEnabled(this);
-        boolean lis = AutoMode.isListenerEnabled(this);
         accTv.setText((acc ? "✓ " : "✗ ") + "无障碍权限（识别当前打开的软件）  ›");
         accTv.setTextColor(acc ? 0xFF15803D : 0xFFB91C1C);
-        listenTv.setText((lis ? "✓ " : "○ ") + "通知使用权（判断是否正在播放，可选）  ›");
-        listenTv.setTextColor(lis ? 0xFF15803D : SUB);
-        appsTv.setText("选择视频软件（"
+        appsTv.setText("白名单："
                 + (AutoMode.hasCustomApps(this)
-                ? "已选 " + AutoMode.selectedApps(this).size() + " 个"
-                : "默认：常见视频软件") + "）  ›");
+                ? "已添加 " + AutoMode.selectedApps(this).size() + " 个软件"
+                : "默认（常见视频软件）") + "，点这里修改  ›");
         appsTv.setTextColor(ACCENT);
     }
 

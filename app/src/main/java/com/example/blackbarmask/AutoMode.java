@@ -1,34 +1,28 @@
 package com.example.blackbarmask;
 
-import android.app.NotificationManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.Settings;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * 自动模式的“大脑”。
- * 输入：无障碍服务告诉我当前前台是哪个 App；通知使用权服务告诉我哪些 App 正在播放媒体。
- * 规则：前台 App 在名单里，并且（正在播放 / 刚暂停不久 / 系统读不到它的播放状态）→ 开启白边，否则关闭。
- * 只在状态“变化”时才开关，所以你手动开关后，会一直保持到下一次状态变化。
- * 横屏才显示、竖屏自动隐藏，则由 MaskService 自己负责。
+ * 自动模式（白名单）。
+ * 无障碍服务告诉我当前前台是哪个 App：在白名单里 → 开启白边，不在 → 关闭。
+ * 只在状态“变化”时才开关，所以你手动开关后，会一直保持到下一次前台软件变化。
+ * 横屏才显示、竖屏自动隐藏，由 MaskService 自己负责。
  */
 public final class AutoMode {
     public static final String KEY_AUTO = "auto";
     public static final String KEY_APPS = "auto_apps";
 
-    /** 默认勾选的常见视频软件（没安装的会被忽略）。 */
+    /** 默认白名单：常见视频软件（没安装的会被忽略）。 */
     public static final String[] DEFAULT_APPS = {
             "tv.danmaku.bili",               // 哔哩哔哩
             "com.bilibili.app.in",           // 哔哩哔哩国际版
@@ -47,18 +41,9 @@ public final class AutoMode {
             "com.mxtech.videoplayer.ad",     // MX Player
     };
 
-    private static final long GRACE_MS = 60_000; // 暂停后继续保持白边的时间
-    private static final Handler H = new Handler(Looper.getMainLooper());
-
     private static String fg = "";
-    private static final Map<String, Boolean> media = new HashMap<>();      // 包名 -> 是否正在播放
-    private static final Map<String, Long> lastPlaying = new HashMap<>();   // 包名 -> 最近一次停止播放的时间
     private static boolean lastDesired = false;
     private static Context appCtx;
-
-    private static final Runnable RECHECK = () -> {
-        if (appCtx != null) evaluate(appCtx);
-    };
 
     private AutoMode() { }
 
@@ -90,15 +75,6 @@ public final class AutoMode {
         return s.contains(cn.flattenToString()) || s.contains(cn.flattenToShortString());
     }
 
-    public static boolean isListenerEnabled(Context c) {
-        try {
-            NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
-            return nm.isNotificationListenerAccessGranted(new ComponentName(c, MediaListener.class));
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     // ---------------- 事件输入 ----------------
 
     /** 无障碍服务：前台窗口变化。 */
@@ -111,48 +87,19 @@ public final class AutoMode {
         evaluate(c);
     }
 
-    /** 通知使用权服务：当前各 App 的播放状态。 */
-    public static void onMedia(Context c, Map<String, Boolean> snapshot) {
-        long now = System.currentTimeMillis();
-        for (Map.Entry<String, Boolean> e : media.entrySet()) {
-            // 刚从“播放”变成“暂停/消失”：记下时间，用来计算暂停后的保持时间
-            if (e.getValue() && !Boolean.TRUE.equals(snapshot.get(e.getKey()))) {
-                lastPlaying.put(e.getKey(), now);
-            }
-        }
-        media.clear();
-        media.putAll(snapshot);
-        evaluate(c);
-    }
-
     // ---------------- 判断 ----------------
 
     public static void evaluate(Context c) {
         appCtx = c.getApplicationContext();
-        H.removeCallbacks(RECHECK);
         if (!isEnabled(appCtx)) {
             lastDesired = false;
             return;
         }
-        boolean desired = compute();
+        boolean desired = !fg.isEmpty() && selectedApps(appCtx).contains(fg);
         if (desired != lastDesired) {
             lastDesired = desired;
             apply(desired);
         }
-    }
-
-    private static boolean compute() {
-        if (fg.isEmpty() || !selectedApps(appCtx).contains(fg)) return false;
-        Boolean playing = media.get(fg);
-        if (playing == null) return true;   // 系统读不到它的播放状态：按“在前台”处理
-        if (playing) return true;
-        Long t = lastPlaying.get(fg);
-        long left = t == null ? 0 : GRACE_MS - (System.currentTimeMillis() - t);
-        if (left > 0) {                     // 刚暂停：保持一会儿，到点再复查
-            H.postDelayed(RECHECK, left + 300);
-            return true;
-        }
-        return false;
     }
 
     private static void apply(boolean on) {

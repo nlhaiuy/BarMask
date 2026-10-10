@@ -9,12 +9,16 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -29,18 +33,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** 选择“在哪些软件里自动开启白边”。 */
+/** 白名单：选择“在哪些软件里自动开启白边”，支持搜索，可同时选多个。 */
 public class AppPickerActivity extends Activity {
     private static class Item {
         String pkg;
         CharSequence label;
+        String key;      // 小写的名称 + 包名，用来搜索
         Drawable icon;
         boolean checked;
     }
 
-    private final List<Item> items = new ArrayList<>();
+    private final List<Item> all = new ArrayList<>();
+    private final List<Item> shown = new ArrayList<>();
     private ListView list;
     private BaseAdapter adapter;
+    private EditText search;
     private TextView countTv;
     private float density;
 
@@ -53,7 +60,11 @@ public class AppPickerActivity extends Activity {
         super.onCreate(b);
         density = getResources().getDisplayMetrics().density;
         getWindow().setStatusBarColor(Color.WHITE);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        getWindow().setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -61,9 +72,9 @@ public class AppPickerActivity extends Activity {
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.VERTICAL);
-        head.setPadding(dp(20), dp(16), dp(20), dp(12));
+        head.setPadding(dp(20), dp(16), dp(20), dp(8));
         TextView title = new TextView(this);
-        title.setText("选择视频软件");
+        title.setText("白名单");
         title.setTextSize(20);
         title.setTextColor(0xFF111827);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -73,6 +84,21 @@ public class AppPickerActivity extends Activity {
         countTv.setTextColor(0xFF6B7280);
         countTv.setText("正在加载应用列表…");
         head.addView(countTv);
+
+        // 搜索框
+        search = new EditText(this);
+        search.setHint("搜索软件名称");
+        search.setSingleLine(true);
+        search.setTextSize(15);
+        search.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable sbg = new GradientDrawable();
+        sbg.setColor(0xFFEEF0F6);
+        sbg.setCornerRadius(dp(12));
+        search.setBackground(sbg);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = dp(12);
+        head.addView(search, slp);
         page.addView(head);
 
         list = new ListView(this);
@@ -80,6 +106,12 @@ public class AppPickerActivity extends Activity {
         page.addView(list, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(page);
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int c, int d) { }
+            @Override public void onTextChanged(CharSequence s, int a, int c, int d) { }
+            @Override public void afterTextChanged(Editable s) { refilter(); }
+        });
 
         new Thread(this::load).start();
     }
@@ -96,33 +128,45 @@ public class AppPickerActivity extends Activity {
             Item it = new Item();
             it.pkg = pkg;
             it.label = ri.loadLabel(pm);
+            it.key = (it.label.toString() + " " + pkg).toLowerCase(Locale.ROOT);
             it.icon = ri.loadIcon(pm);
             it.checked = sel.contains(pkg);
             map.put(pkg, it);
         }
-        List<Item> sorted = new ArrayList<>(map.values());
-        Collator col = Collator.getInstance(Locale.CHINA);
-        sorted.sort((a, c) -> {
-            if (a.checked != c.checked) return a.checked ? -1 : 1; // 已勾选的排前面
-            return col.compare(a.label.toString(), c.label.toString());
-        });
         runOnUiThread(() -> {
-            items.clear();
-            items.addAll(sorted);
+            all.clear();
+            all.addAll(map.values());
             adapter = new Adapter();
             list.setAdapter(adapter);
             list.setOnItemClickListener((p, v, pos, id) -> {
-                items.get(pos).checked = !items.get(pos).checked;
+                Item it = shown.get(pos);
+                it.checked = !it.checked;   // 只改状态，不重排，避免列表乱跳
                 adapter.notifyDataSetChanged();
                 save();
             });
-            updateCount();
+            refilter();
         });
+    }
+
+    /** 按搜索词过滤；已勾选的排前面，其余按名称排序。选中状态在搜索前后保持不变。 */
+    private void refilter() {
+        String q = search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        shown.clear();
+        for (Item it : all) {
+            if (q.isEmpty() || it.key.contains(q)) shown.add(it);
+        }
+        Collator col = Collator.getInstance(Locale.CHINA);
+        shown.sort((a, c) -> {
+            if (a.checked != c.checked) return a.checked ? -1 : 1;
+            return col.compare(a.label.toString(), c.label.toString());
+        });
+        if (adapter != null) adapter.notifyDataSetChanged();
+        updateCount();
     }
 
     private void save() {
         Set<String> s = new HashSet<>();
-        for (Item it : items) if (it.checked) s.add(it.pkg);
+        for (Item it : all) if (it.checked) s.add(it.pkg);
         SharedPreferences sp = getSharedPreferences(MaskService.PREFS, Context.MODE_PRIVATE);
         sp.edit().putStringSet(AutoMode.KEY_APPS, s).apply();
         updateCount();
@@ -130,18 +174,19 @@ public class AppPickerActivity extends Activity {
 
     private void updateCount() {
         int n = 0;
-        for (Item it : items) if (it.checked) n++;
-        countTv.setText("已选 " + n + " 个，点一下即可勾选/取消");
+        for (Item it : all) if (it.checked) n++;
+        countTv.setText("已添加 " + n + " 个，点一下即可添加/移除"
+                + (search.getText().length() > 0 ? "（搜到 " + shown.size() + " 个）" : ""));
     }
 
     private class Adapter extends BaseAdapter {
-        @Override public int getCount() { return items.size(); }
-        @Override public Object getItem(int i) { return items.get(i); }
+        @Override public int getCount() { return shown.size(); }
+        @Override public Object getItem(int i) { return shown.get(i); }
         @Override public long getItemId(int i) { return i; }
 
         @Override
         public View getView(int i, View convert, ViewGroup parent) {
-            Item it = items.get(i);
+            Item it = shown.get(i);
             LinearLayout row = new LinearLayout(AppPickerActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);

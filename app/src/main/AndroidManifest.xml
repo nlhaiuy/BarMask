@@ -82,15 +82,5 @@
                 android:resource="@xml/accessibility_config" />
         </service>
 
-        <!-- 自动模式：读取播放状态（只读取包名和播放状态） -->
-        <service
-            android:name=".MediaListener"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
     </application>
 </manifest>
