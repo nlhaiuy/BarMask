@@ -181,7 +181,7 @@ public class MainActivity extends Activity {
         root.addView(offCard);
 
         TextView foot = new TextView(this);
-        foot.setText("竖屏时遮罩自动隐藏。可在控制中心添加“黑边遮罩”磁贴，或长按桌面图标一键开关。");
+        foot.setText("竖屏时遮罩自动隐藏。可在控制中心添加“白边”磁贴，或长按桌面图标一键开关。");
         foot.setTextSize(12);
         foot.setTextColor(SUB);
         foot.setPadding(dp(4), dp(4), dp(4), 0);
