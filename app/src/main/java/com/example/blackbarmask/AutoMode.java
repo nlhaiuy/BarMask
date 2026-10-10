@@ -22,10 +22,13 @@ public final class AutoMode {
     public static final String KEY_AUTO = "auto";
     public static final String KEY_APPS = "auto_apps";
 
-    /** 默认白名单：常见视频软件（没安装的会被忽略）。 */
+    /** 默认白名单：常见视频 / 番剧 / 直播软件（没安装的会被忽略，可在“白名单”页增删）。 */
     public static final String[] DEFAULT_APPS = {
+            // —— 综合视频 ——
             "tv.danmaku.bili",               // 哔哩哔哩
             "com.bilibili.app.in",           // 哔哩哔哩国际版
+            "com.bilibili.app.blue",         // 哔哩哔哩概念版
+            "tv.danmaku.bilibilihd",         // 哔哩哔哩 HD
             "com.qiyi.video",                // 爱奇艺
             "com.tencent.qqlive",            // 腾讯视频
             "com.youku.phone",               // 优酷
@@ -37,8 +40,20 @@ public final class AutoMode {
             "com.meizu.media.video",         // 魅族视频
             "com.google.android.youtube",    // YouTube
             "com.netflix.mediaclient",       // Netflix
+            // —— 本地播放器 ——
             "org.videolan.vlc",              // VLC
             "com.mxtech.videoplayer.ad",     // MX Player
+            // —— 看番 ——
+            "me.him188.ani",                 // Animeko
+            "cx.xs.open",                    // AniCh
+            "com.predidit.kazumi",           // Kazumi
+            "tw.com.gamer.android.animad",   // 巴哈姆特动画疯
+            // —— 直播 ——
+            "com.xycz.simple_live",          // Simple Live
+            "air.tv.douyu.android",          // 斗鱼
+            "com.duowan.kiwi",               // 虎牙
+            "com.netease.cc",                // 网易CC
+            "tv.twitch.android.app",         // Twitch
     };
 
     private static String fg = "";
@@ -54,7 +69,7 @@ public final class AutoMode {
     }
 
     public static boolean isEnabled(Context c) {
-        return prefs(c).getBoolean(KEY_AUTO, false);
+        return prefs(c).getBoolean(KEY_AUTO, true); // 默认开启白名单模式
     }
 
     public static boolean hasCustomApps(Context c) {
