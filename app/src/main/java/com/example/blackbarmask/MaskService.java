@@ -25,10 +25,10 @@ import android.view.WindowManager;
 /** 在屏幕左右两侧各盖一块白色悬浮窗，遮住横屏视频两边的黑边。 */
 public class MaskService extends Service {
     public static final String PREFS = "mask_prefs";
-    public static final String KEY_RATIO = "ratio";   // 视频宽高比，默认 4/3
+    public static final String KEY_RATIO = "ratio";   // 视频宽高比，默认 16/9
     public static final String KEY_OFFSET = "offset"; // 微调(dp)，正数=遮罩变宽
-    public static final String KEY_LAYERS = "layers"; // 每侧叠几层(1~6)，系统把悬浮窗压成半透明时调大
-    public static final float DEFAULT_RATIO = 4f / 3f;
+    public static final String KEY_LAYERS = "layers"; // 每侧叠几层：1=标准，3=加强
+    public static final float DEFAULT_RATIO = 16f / 9f;
     public static final int DEFAULT_LAYERS = 1;
     public static final int MAX_LAYERS = 6;
 
