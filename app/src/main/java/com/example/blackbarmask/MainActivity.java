@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private SharedPreferences sp;
     private float density;
     private TextView statusTv, btn;
+    private TextView accTv, listenTv, appsTv;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -132,6 +133,8 @@ public class MainActivity extends Activity {
         });
         root.addView(strengthCard);
 
+        root.addView(autoCard());
+
         // ---- 宽度微调 ----
         LinearLayout offCard = card();
         TextView ot = label("");
@@ -199,6 +202,67 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         updateUi(MaskService.running);
+        refreshAuto();
+    }
+
+    // ---------------- 自动模式 ----------------
+
+    private LinearLayout autoCard() {
+        LinearLayout c = card();
+        c.addView(label("自动模式"));
+        TextView hint = small("打开你选的视频软件、并且正在播放时，自动开启白边；退出或暂停太久后自动关闭。");
+        hint.setPadding(0, 0, 0, dp(10));
+        c.addView(hint);
+        addChips(c, new String[]{"关闭", "开启"}, 2, AutoMode.isEnabled(this) ? 1 : 0, pos -> {
+            boolean on = pos == 1;
+            sp.edit().putBoolean(AutoMode.KEY_AUTO, on).apply();
+            if (on && !AutoMode.isAccessibilityEnabled(this)) {
+                Toast.makeText(this, "请在列表里找到“白边”，开启无障碍", Toast.LENGTH_LONG).show();
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            }
+            refreshAuto();
+        });
+        accTv = row(c, v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        listenTv = row(c, v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        appsTv = row(c, v -> startActivity(new Intent(this, AppPickerActivity.class)));
+        TextView tip = small("如果系统把“无障碍”选项置灰：到 手机设置 → 应用 → 白边 → 右上角菜单，"
+                + "选择“允许受限制的设置”，再回来开启。");
+        tip.setPadding(0, dp(8), 0, 0);
+        c.addView(tip);
+        return c;
+    }
+
+    private void refreshAuto() {
+        if (accTv == null) return;
+        boolean acc = AutoMode.isAccessibilityEnabled(this);
+        boolean lis = AutoMode.isListenerEnabled(this);
+        accTv.setText((acc ? "✓ " : "✗ ") + "无障碍权限（识别当前打开的软件）  ›");
+        accTv.setTextColor(acc ? 0xFF15803D : 0xFFB91C1C);
+        listenTv.setText((lis ? "✓ " : "○ ") + "通知使用权（判断是否正在播放，可选）  ›");
+        listenTv.setTextColor(lis ? 0xFF15803D : SUB);
+        appsTv.setText("选择视频软件（"
+                + (AutoMode.hasCustomApps(this)
+                ? "已选 " + AutoMode.selectedApps(this).size() + " 个"
+                : "默认：常见视频软件") + "）  ›");
+        appsTv.setTextColor(ACCENT);
+    }
+
+    private TextView row(LinearLayout parent, View.OnClickListener l) {
+        TextView t = new TextView(this);
+        t.setTextSize(15);
+        t.setTextColor(TEXT);
+        t.setPadding(0, dp(12), 0, dp(12));
+        t.setOnClickListener(l);
+        parent.addView(t);
+        return t;
+    }
+
+    private TextView small(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(12);
+        t.setTextColor(SUB);
+        return t;
     }
 
     // ---------------- 逻辑 ----------------

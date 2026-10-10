@@ -3,4 +3,5 @@
     <string name="tile_label">白边</string>
     <string name="shortcut_short">开关白边</string>
     <string name="shortcut_long">一键开关白边遮罩</string>
+    <string name="accessibility_desc">白边只用它来知道当前打开的是哪个软件，以便在你打开所选的视频软件时自动开启白边。不会读取屏幕上的任何内容。</string>
 </resources>
