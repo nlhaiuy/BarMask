@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -14,6 +15,7 @@ import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.service.quicksettings.TileService;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.Gravity;
@@ -30,7 +32,7 @@ public class MaskService extends Service {
     public static boolean running = false;
 
     private WindowManager wm;
-    private static final int LAYERS = 4; // 叠几层，对付系统把悬浮窗强制半透明
+    private static final int LAYERS = 1; // 每侧遮罩层数（第一个版本为 1；若系统把悬浮窗压成半透明，可改成 4）
     private final java.util.List<View> bars = new java.util.ArrayList<>();
 
     @Override
@@ -53,6 +55,14 @@ public class MaskService extends Service {
             startForeground(1, n);
         }
         running = true;
+        refreshTile();
+    }
+
+    private void refreshTile() {
+        try {
+            TileService.requestListeningState(this,
+                    new ComponentName(this, MaskTileService.class));
+        } catch (Exception ignored) { }
     }
 
     @Override
@@ -94,8 +104,7 @@ public class MaskService extends Service {
 
     private View addBar(int gravity, int width, int height) {
         View v = new View(this);
-        v.setBackgroundColor(0xFFFFFFFF); // 不透明纯白
-        v.setAlpha(1f);
+        v.setBackgroundColor(Color.WHITE);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 width, height,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -105,8 +114,6 @@ public class MaskService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.OPAQUE);
-        lp.alpha = 1f;        // 窗口完全不透明
-        lp.dimAmount = 0f;
         lp.gravity = gravity;
         lp.x = 0;
         lp.y = 0;
@@ -127,6 +134,7 @@ public class MaskService extends Service {
     public void onDestroy() {
         removeViews();
         running = false;
+        refreshTile();
         super.onDestroy();
     }
 

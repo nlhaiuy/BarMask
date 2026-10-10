@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="toggle_mask"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut"
+        android:shortcutShortLabel="@string/shortcut_short"
+        android:shortcutLongLabel="@string/shortcut_long">
+        <intent
+            android:action="com.example.blackbarmask.TOGGLE"
+            android:targetPackage="com.example.blackbarmask"
+            android:targetClass="com.example.blackbarmask.ToggleActivity" />
+    </shortcut>
+</shortcuts>
