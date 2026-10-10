@@ -7,7 +7,9 @@ import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.PowerManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -40,7 +42,10 @@ public class MainActivity extends Activity {
     private SharedPreferences sp;
     private float density;
     private TextView statusTv, btn;
-    private TextView accTv, appsTv;
+    private TextView appsTv, permTitle, guideBtn;
+    private final TextView[] permRows = new TextView[4];
+    private boolean guiding = false, awaitingReturn = false;
+    private int step = -1;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -52,10 +57,6 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(Color.WHITE);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-
-        if (Build.VERSION.SDK_INT >= 33) {
-            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
-        }
 
         // 整体：上面是可滚动的设置，下面固定一个大按钮（拇指最容易按到）
         LinearLayout page = new LinearLayout(this);
@@ -97,6 +98,8 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hlp.bottomMargin = dp(16);
         root.addView(header, hlp);
+
+        root.addView(permCard());
 
         // ---- 视频比例 ----
         LinearLayout ratioCard = card();
@@ -196,12 +199,34 @@ public class MainActivity extends Activity {
 
         setContentView(page);
         updateUi(MaskService.running);
+
+        // 第一次打开：自动带你把需要的权限一次设置完
+        if (!sp.getBoolean("guided", false)) {
+            sp.edit().putBoolean("guided", true).apply();
+            if (anyMissing()) startGuide();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (guiding && step >= 0) awaitingReturn = true; // 去系统设置页了，回来时继续下一步
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         updateUi(MaskService.running);
+        if (guiding && awaitingReturn) {
+            awaitingReturn = false;
+            if (required(step) && applicable(step) && missing(step)) {
+                guiding = false;
+                step = -1;
+                Toast.makeText(this, "这一步还没完成，可以点对应的那一行再试一次", Toast.LENGTH_LONG).show();
+            } else {
+                advance();
+            }
+        }
         refreshAuto();
     }
 
@@ -216,13 +241,9 @@ public class MainActivity extends Activity {
         addChips(c, new String[]{"关闭", "开启"}, 2, AutoMode.isEnabled(this) ? 1 : 0, pos -> {
             boolean on = pos == 1;
             sp.edit().putBoolean(AutoMode.KEY_AUTO, on).apply();
-            if (on && !AutoMode.isAccessibilityEnabled(this)) {
-                Toast.makeText(this, "请在列表里找到“白边”，开启无障碍", Toast.LENGTH_LONG).show();
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            }
+            if (on && !AutoMode.isAccessibilityEnabled(this)) startGuide(); // 带你去开无障碍
             refreshAuto();
         });
-        accTv = row(c, v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         appsTv = row(c, v -> startActivity(new Intent(this, AppPickerActivity.class)));
         TextView tip = small("如果系统把“无障碍”选项置灰：到 手机设置 → 应用 → 白边 → 右上角菜单，"
                 + "选择“允许受限制的设置”，再回来开启。");
@@ -232,10 +253,8 @@ public class MainActivity extends Activity {
     }
 
     private void refreshAuto() {
-        if (accTv == null) return;
-        boolean acc = AutoMode.isAccessibilityEnabled(this);
-        accTv.setText((acc ? "✓ " : "✗ ") + "无障碍权限（识别当前打开的软件）  ›");
-        accTv.setTextColor(acc ? 0xFF15803D : 0xFFB91C1C);
+        if (appsTv == null) return;
+        refreshPerms();
         appsTv.setText("白名单："
                 + (AutoMode.hasCustomApps(this)
                 ? "已添加 " + AutoMode.selectedApps(this).size() + " 个软件"
@@ -261,6 +280,141 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    // ---------------- 权限（一键设置） ----------------
+
+    private static final String[] PERM_NAMES = {
+            "悬浮窗权限（必需，用来显示白边）",
+            "通知权限（可选，显示运行状态）",
+            "后台运行（推荐，防止被系统关掉）",
+            "无障碍权限（自动模式需要）"};
+
+    private LinearLayout permCard() {
+        LinearLayout c = card();
+        permTitle = label("权限");
+        c.addView(permTitle);
+        for (int i = 0; i < PERM_NAMES.length; i++) {
+            final int idx = i;
+            permRows[i] = row(c, v -> {   // 点某一行：只处理这一项
+                guiding = false;
+                launch(idx);
+            });
+        }
+        guideBtn = new TextView(this);
+        guideBtn.setText("一键设置权限");
+        guideBtn.setGravity(Gravity.CENTER);
+        guideBtn.setTextSize(16);
+        guideBtn.setTextColor(Color.WHITE);
+        guideBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        guideBtn.setPadding(0, dp(12), 0, dp(12));
+        guideBtn.setBackground(round(ACCENT, 12));
+        guideBtn.setOnClickListener(v -> startGuide());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(8);
+        c.addView(guideBtn, lp);
+        return c;
+    }
+
+    /** 这一项当前是否需要（通知仅 Android 13+，无障碍仅自动模式开启时）。 */
+    private boolean applicable(int i) {
+        if (i == 1) return Build.VERSION.SDK_INT >= 33;
+        if (i == 3) return AutoMode.isEnabled(this);
+        return true;
+    }
+
+    private boolean missing(int i) {
+        switch (i) {
+            case 0:
+                return !Settings.canDrawOverlays(this);
+            case 1:
+                return Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                        != PackageManager.PERMISSION_GRANTED;
+            case 2:
+                return !((PowerManager) getSystemService(POWER_SERVICE))
+                        .isIgnoringBatteryOptimizations(getPackageName());
+            default:
+                return !AutoMode.isAccessibilityEnabled(this);
+        }
+    }
+
+    private boolean required(int i) {
+        return i == 0 || i == 3;
+    }
+
+    private boolean anyMissing() {
+        for (int i = 0; i < PERM_NAMES.length; i++) {
+            if (applicable(i) && missing(i)) return true;
+        }
+        return false;
+    }
+
+    private void launch(int i) {
+        try {
+            switch (i) {
+                case 0:
+                    startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName())));
+                    break;
+                case 1:
+                    requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+                    break;
+                case 2:
+                    try {
+                        startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:" + getPackageName())));
+                    } catch (Exception e) {
+                        startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                    }
+                    break;
+                default:
+                    Toast.makeText(this, "在列表里找到“白边”并开启", Toast.LENGTH_LONG).show();
+                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            }
+        } catch (Exception e) {
+            // 实在打不开专用页面，就去应用信息页，让用户手动设置
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())));
+        }
+    }
+
+    private void startGuide() {
+        guiding = true;
+        step = -1;
+        advance();
+    }
+
+    /** 跳到下一个还没授予的权限；都授予了就结束。 */
+    private void advance() {
+        for (int i = step + 1; i < PERM_NAMES.length; i++) {
+            if (applicable(i) && missing(i)) {
+                step = i;
+                launch(i);
+                return;
+            }
+        }
+        boolean was = guiding;
+        guiding = false;
+        step = -1;
+        if (was) Toast.makeText(this, "权限已全部就绪 ✓", Toast.LENGTH_SHORT).show();
+        refreshPerms();
+    }
+
+    private void refreshPerms() {
+        if (permRows[0] == null) return;
+        boolean any = anyMissing();
+        for (int i = 0; i < PERM_NAMES.length; i++) {
+            boolean show = any && !(i == 1 && Build.VERSION.SDK_INT < 33);
+            permRows[i].setVisibility(show ? View.VISIBLE : View.GONE);
+            boolean miss = missing(i);
+            boolean need = required(i) && applicable(i);
+            permRows[i].setText((miss ? (need ? "✗ " : "○ ") : "✓ ") + PERM_NAMES[i] + (miss ? "  ›" : ""));
+            permRows[i].setTextColor(!miss ? 0xFF15803D : (need ? 0xFFB91C1C : SUB));
+        }
+        permTitle.setText(any ? "权限（还有没完成的）" : "权限（已全部就绪 ✓）");
+        guideBtn.setVisibility(any ? View.VISIBLE : View.GONE);
+    }
+
     // ---------------- 逻辑 ----------------
 
     private void toggle() {
@@ -271,9 +425,8 @@ public class MainActivity extends Activity {
             return;
         }
         if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "请先允许“显示在其他应用上层”", Toast.LENGTH_LONG).show();
-            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName())));
+            Toast.makeText(this, "先授予“显示在其他应用上层”权限", Toast.LENGTH_LONG).show();
+            startGuide();
             return;
         }
         startForegroundService(svc);
