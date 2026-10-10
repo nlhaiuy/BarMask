@@ -30,7 +30,8 @@ public class MaskService extends Service {
     public static boolean running = false;
 
     private WindowManager wm;
-    private View left, right;
+    private static final int LAYERS = 4; // 叠几层，对付系统把悬浮窗强制半透明
+    private final java.util.List<View> bars = new java.util.ArrayList<>();
 
     @Override
     public void onCreate() {
@@ -85,8 +86,10 @@ public class MaskService extends Service {
         bar = Math.max(0, Math.min(bar, w / 2));
         if (bar == 0) return;
 
-        left = addBar(Gravity.TOP | Gravity.START, bar, h);
-        right = addBar(Gravity.TOP | Gravity.END, bar, h);
+        for (int i = 0; i < LAYERS; i++) {
+            bars.add(addBar(Gravity.TOP | Gravity.START, bar, h));
+            bars.add(addBar(Gravity.TOP | Gravity.END, bar, h));
+        }
     }
 
     private View addBar(int gravity, int width, int height) {
@@ -114,10 +117,10 @@ public class MaskService extends Service {
     }
 
     private void removeViews() {
-        try { if (left != null) wm.removeView(left); } catch (Exception ignored) { }
-        try { if (right != null) wm.removeView(right); } catch (Exception ignored) { }
-        left = null;
-        right = null;
+        for (View v : bars) {
+            try { wm.removeView(v); } catch (Exception ignored) { }
+        }
+        bars.clear();
     }
 
     @Override
