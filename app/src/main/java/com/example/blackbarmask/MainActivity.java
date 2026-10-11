@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton btn, banner;
     private MaterialButton appsRow;
     private PreviewView preview;
-    private Slider slider;
+    private TickSlider slider;
     private EditText offsetInput;
     private boolean offsetBusy = false;
     private int lastTick = Integer.MIN_VALUE;
