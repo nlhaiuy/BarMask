@@ -17,6 +17,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -56,23 +57,24 @@ public class MainActivity extends Activity {
         density = getResources().getDisplayMetrics().density;
 
         getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().setNavigationBarColor(BG);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
-        // 上面是可滚动的设置，下面固定一个大按钮（拇指最容易按到）
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
+        // 设置卡片整体居中偏下；总开关做成右下角的悬浮按钮（单手拇指最容易按到）
+        FrameLayout page = new FrameLayout(this);
         page.setBackgroundColor(BG);
 
         ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(20), dp(16), dp(16));
+        root.setGravity(Gravity.CENTER_VERTICAL);
+        root.setPadding(dp(16), dp(24), dp(16), dp(112)); // 底部留出悬浮按钮的位置
         sv.addView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        page.addView(sv, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        page.addView(sv, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
 
         // ---- 缺权限时才出现的提示条 ----
@@ -92,27 +94,20 @@ public class MainActivity extends Activity {
         root.addView(displayCard());
         root.addView(offsetCard());
 
-        // ---- 底部固定：总开关 ----
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable bbg = new GradientDrawable();
-        bbg.setColor(Color.WHITE);
-        bbg.setCornerRadii(new float[]{dp(20), dp(20), dp(20), dp(20), 0, 0, 0, 0});
-        bottom.setBackground(bbg);
-        bottom.setElevation(dp(8));
-        bottom.setPadding(dp(16), dp(16), dp(16), dp(20));
-
+        // ---- 右下角悬浮的总开关 ----
         btn = new TextView(this);
         btn.setGravity(Gravity.CENTER);
-        btn.setTextSize(20);
+        btn.setTextSize(17);
         btn.setTextColor(Color.WHITE);
         btn.setTypeface(Typeface.DEFAULT_BOLD);
-        btn.setPadding(0, dp(20), 0, dp(20));
+        btn.setPadding(dp(30), dp(17), dp(30), dp(17));
+        btn.setElevation(dp(6));
         btn.setOnClickListener(v -> toggle());
-        bottom.addView(btn, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        page.addView(bottom, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.END);
+        flp.setMargins(0, 0, dp(24), dp(32));
+        page.addView(btn, flp);
 
         setContentView(page);
         updateUi();
@@ -241,7 +236,7 @@ public class MainActivity extends Activity {
     private void updateUi() {
         boolean on = AutoMode.isMaster(this);
         btn.setText(on ? "关闭白边" : "开启白边");
-        btn.setBackground(round(on ? OFF_BTN : ACCENT, 18));
+        btn.setBackground(round(on ? OFF_BTN : ACCENT, 30));
         refreshPerms();
     }
 

@@ -10,8 +10,19 @@ android {
         applicationId "com.example.baibian"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        // 每次构建版本号递增，保证新版本总能覆盖旧版本
+        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    // 固定的调试签名：每次构建签名一致，才能覆盖安装
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
     }
 
     buildTypes {
