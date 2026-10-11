@@ -17,7 +17,6 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -75,24 +74,6 @@ public class MainActivity extends Activity {
         page.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        // ---- 标题 ----
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView icon = new ImageView(this);
-        icon.setImageResource(R.mipmap.ic_launcher);
-        header.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
-        TextView title = new TextView(this);
-        title.setText(getString(R.string.app_name));
-        title.setTextSize(22);
-        title.setTextColor(TEXT);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setPadding(dp(12), 0, 0, 0);
-        header.addView(title);
-        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hlp.bottomMargin = dp(16);
-        root.addView(header, hlp);
 
         // ---- 缺权限时才出现的提示条 ----
         banner = new TextView(this);
