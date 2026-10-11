@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
     private float density;
     private TextView btn, appsTv, banner, statusTv;
     private Preview preview;
+    private LinearLayout appsRow, iconBox;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -146,10 +147,10 @@ public class MainActivity extends Activity {
         // ---- 底部：状态说明 + 通栏总开关（拇指最容易按到）----
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.setPadding(dp(16), dp(4), dp(16), dp(20));
+        bottom.setPadding(dp(24), dp(4), dp(24), dp(24));
         statusTv = new TextView(this);
         statusTv.setGravity(Gravity.CENTER);
-        statusTv.setTextSize(13);
+        statusTv.setTextSize(12);
         statusTv.setTextColor(SUB);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -159,7 +160,7 @@ public class MainActivity extends Activity {
         btn.setGravity(Gravity.CENTER);
         btn.setTextSize(18);
         btn.setTypeface(Typeface.DEFAULT_BOLD);
-        btn.setElevation(dp(2));
+        btn.setElevation(dp(8));
         btn.setOnClickListener(v -> toggle());
         bottom.addView(btn, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
@@ -214,13 +215,25 @@ public class MainActivity extends Activity {
             // 白名单模式要靠无障碍识别前台软件
             if (whitelist && AutoMode.isMaster(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
         });
+        appsRow = new LinearLayout(this);
+        appsRow.setOrientation(LinearLayout.HORIZONTAL);
+        appsRow.setGravity(Gravity.CENTER_VERTICAL);
+        appsRow.setPadding(dp(14), 0, dp(14), 0);
+        appsRow.setBackground(round(CHIP, 14));
+        appsRow.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
+        iconBox = new LinearLayout(this);
+        iconBox.setOrientation(LinearLayout.HORIZONTAL);
+        appsRow.addView(iconBox);
         appsTv = new TextView(this);
         appsTv.setTextSize(15);
         appsTv.setTextColor(ACCENT);
         appsTv.setTypeface(Typeface.DEFAULT_BOLD);
-        appsTv.setPadding(0, dp(14), 0, 0);
-        appsTv.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
-        c.addView(appsTv);
+        appsRow.addView(appsTv, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        rlp.topMargin = dp(12);
+        c.addView(appsRow, rlp);
         return c;
     }
 
@@ -270,7 +283,15 @@ public class MainActivity extends Activity {
         input.setPadding(dp(8), dp(6), dp(8), dp(6));
         input.setBackground(round(CHIP, 10));
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
-        head.addView(input, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView minus = stepButton("−");
+        TextView plus = stepButton("+");
+        head.addView(minus);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
+                dp(60), ViewGroup.LayoutParams.WRAP_CONTENT);
+        ilp.leftMargin = dp(6);
+        ilp.rightMargin = dp(6);
+        head.addView(input, ilp);
+        head.addView(plus);
         TextView unit = new TextView(this);
         unit.setText(" dp");
         unit.setTextSize(14);
@@ -315,6 +336,8 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
         slp.topMargin = dp(8);
         c.addView(sb, slp);
+        c.addView(new Ticks(this), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(14)));
 
         int off = sp.getInt(MaskService.KEY_OFFSET, 0);
         sb.setProgress(off + 100);
@@ -363,15 +386,19 @@ public class MainActivity extends Activity {
         });
         input.setOnFocusChangeListener((v, has) -> { if (!has) normalize.run(); });
 
-        reset.setOnClickListener(v -> {
-            sp.edit().putInt(MaskService.KEY_OFFSET, 0).apply();
+        java.util.function.IntConsumer setOff = o0 -> {
+            int o = Math.max(-100, Math.min(100, o0));
+            sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
             offsetBusy = true;
-            sb.setProgress(100);
-            input.setText("0");
+            sb.setProgress(o + 100);
+            input.setText(String.valueOf(o));
             offsetBusy = false;
             input.clearFocus();
             changed();
-        });
+        };
+        reset.setOnClickListener(v -> setOff.accept(0));
+        minus.setOnClickListener(v -> setOff.accept(sp.getInt(MaskService.KEY_OFFSET, 0) - 1));
+        plus.setOnClickListener(v -> setOff.accept(sp.getInt(MaskService.KEY_OFFSET, 0) + 1));
         return c;
     }
 
@@ -381,7 +408,11 @@ public class MainActivity extends Activity {
     private void updateUi() {
         boolean on = AutoMode.isMaster(this);
         btn.setText(on ? "关闭白边" : "开启白边");
-        btn.setBackground(round(on ? OFF_BTN : ACCENT, 30));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                on ? new int[]{OFF_BTN, OFF_BTN}
+                   : new int[]{ACCENT, night ? 0xFFD6BCFF : 0xFF7C3AED});
+        bg.setCornerRadius(dp(30));
+        btn.setBackground(bg);
         btn.setTextColor(on ? ON_OFF_BTN : ON_ACCENT);
         if (preview != null) preview.setOn(on);
         statusTv.setText(on
@@ -398,7 +429,31 @@ public class MainActivity extends Activity {
         final String text = whitelist
                 ? "白名单软件 · 已选 " + installedSelectedCount() + " 个  ›"
                 : "全局模式：横屏时始终盖白边";
-        appsTv.setClickable(whitelist);
+        appsRow.setClickable(whitelist);
+        iconBox.removeAllViews();
+        if (whitelist) {
+            PackageManager pm = getPackageManager();
+            int shown = 0;
+            for (String pkg : AutoMode.selectedApps(this)) {
+                if (shown >= 4) break;
+                try {
+                    ImageView iv = new ImageView(this);
+                    iv.setImageDrawable(pm.getApplicationIcon(pkg));
+                    GradientDrawable ring = round(CHIP, 20);
+                    ring.setStroke(dp(2), CHIP);
+                    iv.setBackground(ring);
+                    iv.setPadding(dp(2), dp(2), dp(2), dp(2));
+                    LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(30), dp(30));
+                    if (shown > 0) ilp.leftMargin = -dp(9);
+                    iconBox.addView(iv, ilp);
+                    shown++;
+                } catch (Exception ignored) { }
+            }
+            if (shown > 0) {
+                TextView sp0 = new TextView(this);
+                iconBox.addView(sp0, new LinearLayout.LayoutParams(dp(10), 1));
+            }
+        }
         if (!text.contentEquals(appsTv.getText())) {
             if (appsTv.getText().length() == 0) {
                 appsTv.setText(text);
@@ -584,6 +639,7 @@ public class MainActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setBackground(round(CARD, 20));
+        c.setElevation(dp(night ? 0 : 2));
         c.setPadding(dp(16), dp(16), dp(16), dp(16));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -670,6 +726,35 @@ public class MainActivity extends Activity {
                 va.start();
             }
             t.setTag(on);
+        }
+    }
+
+    private TextView stepButton(String sym) {
+        TextView t = new TextView(this);
+        t.setText(sym);
+        t.setGravity(Gravity.CENTER);
+        t.setTextSize(18);
+        t.setTextColor(ACCENT);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable g = round(ACCENT_SOFT, 16);
+        t.setBackground(g);
+        t.setLayoutParams(new LinearLayout.LayoutParams(dp(32), dp(32)));
+        return t;
+    }
+
+    /** 滑块下方的刻度尺：每 10dp 一格，0 和两端更长。 */
+    private class Ticks extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Ticks(Context c) { super(c); }
+        @Override protected void onDraw(Canvas cv) {
+            float pad = dp(15), w = getWidth() - 2 * pad;
+            p.setStrokeWidth(Math.max(1f, density * 1.5f));
+            for (int i = 0; i <= 20; i++) {
+                float x = pad + w * i / 20f;
+                boolean major = i == 0 || i == 10 || i == 20;
+                p.setColor(major ? SUB : OUTLINE);
+                cv.drawLine(x, 0, x, major ? getHeight() : getHeight() * 0.55f, p);
+            }
         }
     }
 
