@@ -1,9 +1,11 @@
 package com.example.blackbarmask;
 
+import android.app.KeyguardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -94,6 +96,23 @@ public final class AutoMode {
 
     // ---------------- 事件输入 ----------------
 
+    /**
+     * 无障碍服务：前台窗口变化。
+     * className 是产生事件的窗口类名：真正的应用页面是 Activity（应用自己的类），
+     * 而后台软件弹出的悬浮小窗 / 气泡 / 弹层多半是 android.widget.* 之类的框架类，要忽略，
+     * 否则会把“在后台播放的软件”误当成回到了前台。
+     */
+    public static void onForeground(Context c, String pkg, CharSequence className) {
+        if (className != null) {
+            String cls = className.toString();
+            if (cls.startsWith("android.widget.") || cls.startsWith("android.view.")
+                    || cls.startsWith("android.inputmethodservice.")) {
+                return;
+            }
+        }
+        onForeground(c, pkg);
+    }
+
     /** 无障碍服务：前台窗口变化。 */
     public static void onForeground(Context c, String pkg) {
         if (pkg == null || pkg.isEmpty()) return;
@@ -112,10 +131,21 @@ public final class AutoMode {
             lastDesired = false;
             return;
         }
-        boolean desired = !fg.isEmpty() && selectedApps(appCtx).contains(fg);
+        boolean desired = !fg.isEmpty() && selectedApps(appCtx).contains(fg) && isScreenActive(appCtx);
         if (desired != lastDesired) {
             lastDesired = desired;
             apply(desired);
+        }
+    }
+
+    /** 亮屏且未锁屏：息屏、锁屏后台继续播放时，不显示白边。 */
+    private static boolean isScreenActive(Context c) {
+        try {
+            PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            KeyguardManager km = (KeyguardManager) c.getSystemService(Context.KEYGUARD_SERVICE);
+            return pm.isInteractive() && !km.isKeyguardLocked();
+        } catch (Exception e) {
+            return true;
         }
     }
 
