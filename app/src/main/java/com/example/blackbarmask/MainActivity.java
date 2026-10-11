@@ -8,7 +8,14 @@ import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ClipDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.InputType;
+import android.text.TextWatcher;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +24,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -219,41 +227,129 @@ public class MainActivity extends Activity {
         return c;
     }
 
+    private boolean offsetBusy = false;
+
     private LinearLayout offsetCard() {
         LinearLayout c = card();
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = label("宽度微调", 0);
         head.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView value = new TextView(this);
-        value.setTextSize(14);
-        value.setTextColor(SUB);
-        head.addView(value);
+
+        // 可直接用键盘输入数值
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setSingleLine(true);
+        input.setGravity(Gravity.CENTER);
+        input.setTextSize(15);
+        input.setTextColor(TEXT);
+        input.setPadding(dp(8), dp(6), dp(8), dp(6));
+        input.setBackground(round(CHIP, 10));
+        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
+        head.addView(input, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView unit = new TextView(this);
+        unit.setText(" dp");
+        unit.setTextSize(14);
+        unit.setTextColor(SUB);
+        head.addView(unit);
+
+        TextView reset = new TextView(this);
+        reset.setText("重置");
+        reset.setTextSize(13);
+        reset.setTextColor(ACCENT);
+        reset.setTypeface(Typeface.DEFAULT_BOLD);
+        reset.setPadding(dp(14), dp(7), dp(14), dp(7));
+        reset.setBackground(round(ACCENT_SOFT, 16));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.leftMargin = dp(10);
+        head.addView(reset, rlp);
         c.addView(head);
 
+        // 宽条滑块
         SeekBar sb = new SeekBar(this);
         sb.setMax(200); // 对应 -100dp ~ +100dp
+        GradientDrawable track = round(CHIP, 9);
+        track.setSize(-1, dp(18));
+        GradientDrawable fill = round(ACCENT, 9);
+        fill.setSize(-1, dp(18));
+        LayerDrawable ld = new LayerDrawable(new Drawable[]{
+                track, new ClipDrawable(fill, Gravity.START, ClipDrawable.HORIZONTAL)});
+        ld.setId(0, android.R.id.background);
+        ld.setId(1, android.R.id.progress);
+        sb.setProgressDrawable(ld);
+        GradientDrawable thumb = new GradientDrawable();
+        thumb.setShape(GradientDrawable.OVAL);
+        thumb.setColor(Color.WHITE);
+        thumb.setStroke(dp(4), ACCENT);
+        thumb.setSize(dp(30), dp(30));
+        sb.setThumb(thumb);
+        sb.setThumbOffset(0);
+        sb.setSplitTrack(false);
+        sb.setPadding(dp(15), 0, dp(15), 0);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        slp.topMargin = dp(8);
+        c.addView(sb, slp);
+
         int off = sp.getInt(MaskService.KEY_OFFSET, 0);
         sb.setProgress(off + 100);
-        sb.setProgressTintList(ColorStateList.valueOf(ACCENT));
-        sb.setThumbTintList(ColorStateList.valueOf(ACCENT));
-        value.setText(offsetText(off));
+        input.setText(String.valueOf(off));
+
         sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int p, boolean user) {
+                if (!user || offsetBusy) return;
                 int o = p - 100;
-                value.setText(offsetText(o));
                 sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
-                if (user) changed();
+                offsetBusy = true;
+                input.setText(String.valueOf(o));
+                offsetBusy = false;
+                changed();
             }
             @Override public void onStartTrackingTouch(SeekBar s) { }
             @Override public void onStopTrackingTouch(SeekBar s) { }
         });
-        c.addView(sb);
-        return c;
-    }
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence x, int a, int b, int d) { }
+            @Override public void onTextChanged(CharSequence x, int a, int b, int d) { }
+            @Override public void afterTextChanged(Editable e) {
+                if (offsetBusy) return;
+                String t = e.toString().trim();
+                if (t.isEmpty() || t.equals("-") || t.equals("+")) return;
+                int o;
+                try { o = Integer.parseInt(t); } catch (NumberFormatException ex) { return; }
+                o = Math.max(-100, Math.min(100, o));
+                sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
+                offsetBusy = true;
+                sb.setProgress(o + 100);
+                offsetBusy = false;
+                changed();
+            }
+        });
+        // 输入完成/失焦时，把超出范围或为空的内容规整回有效值
+        Runnable normalize = () -> {
+            offsetBusy = true;
+            input.setText(String.valueOf(sp.getInt(MaskService.KEY_OFFSET, 0)));
+            offsetBusy = false;
+        };
+        input.setOnEditorActionListener((v, id, ev) -> {
+            normalize.run();
+            input.clearFocus();
+            return false;
+        });
+        input.setOnFocusChangeListener((v, has) -> { if (!has) normalize.run(); });
 
-    private String offsetText(int o) {
-        return (o > 0 ? "+" : "") + o + " dp";
+        reset.setOnClickListener(v -> {
+            sp.edit().putInt(MaskService.KEY_OFFSET, 0).apply();
+            offsetBusy = true;
+            sb.setProgress(100);
+            input.setText("0");
+            offsetBusy = false;
+            input.clearFocus();
+            changed();
+        });
+        return c;
     }
 
     // ---------------- 状态刷新 ----------------
