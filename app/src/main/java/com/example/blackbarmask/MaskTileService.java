@@ -18,9 +18,8 @@ public class MaskTileService extends TileService {
     @Override
     public void onClick() {
         super.onClick();
-        if (MaskService.running) {
-            stopService(new Intent(this, MaskService.class));
-            // 服务销毁时会刷新磁贴，这里先乐观地更新一次
+        if (AutoMode.isMaster(this)) {
+            AutoMode.setMaster(this, false);
             setState(false);
         } else {
             // 通过一个可见的 Activity 来启动前台服务，避免后台启动限制
@@ -36,7 +35,7 @@ public class MaskTileService extends TileService {
     }
 
     private void refresh() {
-        setState(MaskService.running);
+        setState(AutoMode.isMaster(this));
     }
 
     private void setState(boolean on) {

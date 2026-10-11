@@ -199,7 +199,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         setContentView(page);
-        updateUi(MaskService.running);
+        updateUi();
 
         // 第一次打开：自动带你把需要的权限一次设置完
         if (!sp.getBoolean("guided", false)) {
@@ -217,7 +217,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        updateUi(MaskService.running);
+        updateUi();
         if (guiding && awaitingReturn) {
             awaitingReturn = false;
             if (required(step) && applicable(step) && missing(step)) {
@@ -241,13 +241,15 @@ public class MainActivity extends Activity {
     private LinearLayout autoCard() {
         LinearLayout c = card();
         c.addView(label("白名单模式"));
-        TextView hint = small("开启后，只在白名单里的软件中自动显示白边：打开这些软件时开启，离开后关闭。");
+        TextView hint = small("开启：总开关打开后，只在白名单里的软件中显示白边，离开就关闭。\n关闭：总开关打开后，全局显示（横屏时始终显示）。");
         hint.setPadding(0, 0, 0, dp(10));
         c.addView(hint);
         addChips(c, new String[]{"开启", "关闭"}, 2, AutoMode.isEnabled(this) ? 0 : 1, pos -> {
             boolean on = pos == 0;
             sp.edit().putBoolean(AutoMode.KEY_AUTO, on).apply();
-            if (on && !AutoMode.isAccessibilityEnabled(this)) startGuide(); // 带你去开无障碍
+            AutoMode.evaluate(this);   // 切换模式后立刻按新模式显示 / 隐藏
+            updateUi();
+            if (on && AutoMode.isMaster(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide(); // 带你去开无障碍
             refreshAuto();
         });
         appsTv = row(c, v -> startActivity(new Intent(this, AppPickerActivity.class)));
@@ -441,11 +443,11 @@ public class MainActivity extends Activity {
 
     // ---------------- 逻辑 ----------------
 
+    /** 总开关：关闭 → 全部关闭；开启 → 按“白名单模式 / 全局模式”显示。 */
     private void toggle() {
-        Intent svc = new Intent(this, MaskService.class);
-        if (MaskService.running) {
-            stopService(svc);
-            updateUi(false);
+        if (AutoMode.isMaster(this)) {
+            AutoMode.setMaster(this, false);
+            updateUi();
             return;
         }
         if (!Settings.canDrawOverlays(this)) {
@@ -453,22 +455,36 @@ public class MainActivity extends Activity {
             startGuide();
             return;
         }
-        startForegroundService(svc);
-        updateUi(true);
+        AutoMode.setMaster(this, true);
+        updateUi();
+        // 白名单模式要靠无障碍识别前台软件
+        if (AutoMode.isEnabled(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
     }
 
-    private void updateUi(boolean on) {
-        statusTv.setText(on ? "● 白边已开启（横屏时生效）" : "○ 白边未开启");
+    private void updateUi() {
+        boolean on = AutoMode.isMaster(this);
+        boolean wl = AutoMode.isEnabled(this);
+        String status;
+        if (!on) {
+            status = "○ 白边已关闭";
+        } else if (!wl) {
+            status = "● 已开启 · 全局模式（横屏时始终显示）";
+        } else if (!AutoMode.isAccessibilityEnabled(this)) {
+            status = "● 已开启 · 白名单模式（还需要开启无障碍权限）";
+        } else {
+            status = "● 已开启 · 白名单模式（仅在白名单软件中显示）";
+        }
+        statusTv.setText(status);
         statusTv.setTextColor(on ? ACCENT : SUB);
         btn.setText(on ? "关闭白边" : "开启白边");
         btn.setBackground(round(on ? OFF_BTN : ACCENT, 18));
     }
 
-    /** 设置有变化：让正在运行的遮罩立即更新。 */
     private void changed() {
         if (MaskService.running) {
-            startForegroundService(new Intent(this, MaskService.class));
+            startForegroundService(new Intent(this, MaskService.class)); // 让正在显示的白边立刻刷新
         }
+        AutoMode.evaluate(this);
     }
 
     private String offsetText(int o) {

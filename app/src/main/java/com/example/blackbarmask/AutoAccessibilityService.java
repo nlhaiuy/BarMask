@@ -32,6 +32,7 @@ public class AutoAccessibilityService extends AccessibilityService {
         f.addAction(Intent.ACTION_USER_PRESENT);
         registerReceiver(screenReceiver, f);
         receiverRegistered = true;
+        AutoMode.evaluate(this);
 
         SharedPreferences sp = getSharedPreferences(MaskService.PREFS, MODE_PRIVATE);
         if (sp.getBoolean(KEY_RETURN, false)) {
