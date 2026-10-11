@@ -17,7 +17,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -43,7 +43,7 @@ public class MainActivity extends Activity {
 
     private SharedPreferences sp;
     private float density;
-    private TextView btn, appsTv, banner;
+    private TextView btn, appsTv, banner, statusTv;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -61,21 +61,61 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
-        // 设置卡片整体居中偏下；总开关做成右下角的悬浮按钮（单手拇指最容易按到）
-        FrameLayout page = new FrameLayout(this);
+        // 顶部：图标 + 标题；中间：大圆形电源键 + 状态；下面：设置卡片
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
         page.setBackgroundColor(BG);
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setPadding(dp(20), dp(16), dp(20), dp(4));
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.mipmap.ic_launcher);
+        head.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        TextView title = new TextView(this);
+        title.setText("白边");
+        title.setTextSize(22);
+        title.setTextColor(TEXT);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setPadding(dp(12), 0, 0, 0);
+        head.addView(title);
+        page.addView(head, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView sv = new ScrollView(this);
         sv.setFillViewport(true);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_VERTICAL);
-        root.setPadding(dp(16), dp(24), dp(16), dp(112)); // 底部留出悬浮按钮的位置
+        root.setPadding(dp(16), dp(8), dp(16), dp(24));
         sv.addView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        page.addView(sv, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        page.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        // ---- 总开关：大圆键 ----
+        btn = new TextView(this);
+        btn.setGravity(Gravity.CENTER);
+        btn.setTextSize(20);
+        btn.setTextColor(Color.WHITE);
+        btn.setTypeface(Typeface.DEFAULT_BOLD);
+        btn.setElevation(dp(8));
+        btn.setOnClickListener(v -> toggle());
+        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(dp(132), dp(132));
+        flp.gravity = Gravity.CENTER_HORIZONTAL;
+        flp.topMargin = dp(8);
+        root.addView(btn, flp);
+
+        statusTv = new TextView(this);
+        statusTv.setGravity(Gravity.CENTER);
+        statusTv.setTextSize(14);
+        statusTv.setTextColor(SUB);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = dp(14);
+        slp.bottomMargin = dp(24);
+        root.addView(statusTv, slp);
 
         // ---- 缺权限时才出现的提示条 ----
         banner = new TextView(this);
@@ -93,21 +133,6 @@ public class MainActivity extends Activity {
         root.addView(modeCard());
         root.addView(displayCard());
         root.addView(offsetCard());
-
-        // ---- 右下角悬浮的总开关 ----
-        btn = new TextView(this);
-        btn.setGravity(Gravity.CENTER);
-        btn.setTextSize(17);
-        btn.setTextColor(Color.WHITE);
-        btn.setTypeface(Typeface.DEFAULT_BOLD);
-        btn.setPadding(dp(30), dp(17), dp(30), dp(17));
-        btn.setElevation(dp(6));
-        btn.setOnClickListener(v -> toggle());
-        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM | Gravity.END);
-        flp.setMargins(0, 0, dp(24), dp(32));
-        page.addView(btn, flp);
 
         setContentView(page);
         updateUi();
@@ -235,8 +260,14 @@ public class MainActivity extends Activity {
     /** 总开关按钮：开着显示“关闭白边”，关着显示“开启白边”。 */
     private void updateUi() {
         boolean on = AutoMode.isMaster(this);
-        btn.setText(on ? "关闭白边" : "开启白边");
-        btn.setBackground(round(on ? OFF_BTN : ACCENT, 30));
+        btn.setText(on ? "已开启" : "已关闭");
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(on ? ACCENT : 0xFF9CA3AF);
+        btn.setBackground(g);
+        statusTv.setText(on
+                ? (AutoMode.isEnabled(this) ? "白名单软件横屏时自动盖白边" : "横屏时始终盖白边")
+                : "点击圆键开启");
         refreshPerms();
     }
 
@@ -246,7 +277,7 @@ public class MainActivity extends Activity {
         boolean whitelist = AutoMode.isEnabled(this);
         appsTv.setVisibility(whitelist ? View.VISIBLE : View.GONE);
         appsTv.setText("白名单软件 · 已选 " + installedSelectedCount() + " 个  ›");
-        refreshPerms();
+        updateUi();
     }
 
     private int installedSelectedCount() {
