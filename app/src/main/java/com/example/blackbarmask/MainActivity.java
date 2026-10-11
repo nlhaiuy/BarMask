@@ -2,6 +2,8 @@ package com.example.blackbarmask;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.animation.ArgbEvaluator;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -24,6 +26,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.OvershootInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -369,8 +372,24 @@ public class MainActivity extends Activity {
     private void refreshAuto() {
         if (appsTv == null) return;
         boolean whitelist = AutoMode.isEnabled(this);
-        appsTv.setVisibility(whitelist ? View.VISIBLE : View.GONE);
-        appsTv.setText("白名单软件 · 已选 " + installedSelectedCount() + " 个  ›");
+        // 位置和高度保持不变，只是文字渐变替换，界面不跳动
+        final String text = whitelist
+                ? "白名单软件 · 已选 " + installedSelectedCount() + " 个  ›"
+                : "全局模式：横屏时始终盖白边";
+        appsTv.setClickable(whitelist);
+        if (!text.contentEquals(appsTv.getText())) {
+            if (appsTv.getText().length() == 0) {
+                appsTv.setText(text);
+                appsTv.setTextColor(whitelist ? ACCENT : SUB);
+            } else {
+                appsTv.animate().cancel();
+                appsTv.animate().alpha(0f).setDuration(110).withEndAction(() -> {
+                    appsTv.setText(text);
+                    appsTv.setTextColor(whitelist ? ACCENT : SUB);
+                    appsTv.animate().alpha(1f).setDuration(110).start();
+                }).start();
+            }
+        }
         updateUi();
     }
 
@@ -589,10 +608,36 @@ public class MainActivity extends Activity {
         styleChips(chips, selected);
     }
 
+    /** 切换选中项：背景色/文字色渐变，被选中的药丸轻微弹一下。首次设置不播动画。 */
     private void styleChips(TextView[] chips, int sel) {
         for (int i = 0; i < chips.length; i++) {
-            chips[i].setBackground(round(i == sel ? ACCENT : CHIP, 12));
-            chips[i].setTextColor(i == sel ? Color.WHITE : TEXT);
+            final TextView t = chips[i];
+            final boolean on = i == sel;
+            Object prev = t.getTag();
+            final int toBg = on ? ACCENT : CHIP, toFg = on ? Color.WHITE : TEXT;
+            if (prev == null) {
+                t.setBackground(round(toBg, 12));
+                t.setTextColor(toFg);
+            } else if ((Boolean) prev != on) {
+                final int fromBg = on ? CHIP : ACCENT, fromFg = on ? TEXT : Color.WHITE;
+                final ArgbEvaluator ev = new ArgbEvaluator();
+                ValueAnimator va = ValueAnimator.ofFloat(0f, 1f);
+                va.setDuration(220);
+                va.addUpdateListener(an -> {
+                    float f = (Float) an.getAnimatedValue();
+                    t.setBackground(round((Integer) ev.evaluate(f, fromBg, toBg), 12));
+                    t.setTextColor((Integer) ev.evaluate(f, fromFg, toFg));
+                });
+                va.start();
+                if (on) {
+                    t.animate().cancel();
+                    t.setScaleX(0.94f);
+                    t.setScaleY(0.94f);
+                    t.animate().scaleX(1f).scaleY(1f).setDuration(220)
+                            .setInterpolator(new OvershootInterpolator(2f)).start();
+                }
+            }
+            t.setTag(on);
         }
     }
 }
