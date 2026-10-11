@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Baibian" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#BDBFFF</item>
+        <item name="colorOnPrimary">#1E1B6B</item>
+        <item name="colorPrimaryContainer">#3A3C6E</item>
+        <item name="colorOnPrimaryContainer">#E0E0FF</item>
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
+    </style>
+</resources>

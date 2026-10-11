@@ -59,17 +59,20 @@ public class AppPickerActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle b) {
+        com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this);
         super.onCreate(b);
         density = getResources().getDisplayMetrics().density;
         night = (getResources().getConfiguration().uiMode
                 & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                 == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        bg = night ? 0xFF121218 : 0xFFF6F5FB;
-        text = night ? 0xFFE5E1E9 : 0xFF1B1B21;
-        sub = night ? 0xFF9E9DAC : 0xFF5F6070;
-        field = night ? 0xFF2B2B36 : 0xFFEEF0F6;
-        getWindow().setStatusBarColor(bg);
-        getWindow().setNavigationBarColor(bg);
+        bg = com.google.android.material.color.MaterialColors.getColor(this,
+                com.google.android.material.R.attr.colorSurface, night ? 0xFF121218 : 0xFFFFFFFF);
+        text = com.google.android.material.color.MaterialColors.getColor(this,
+                com.google.android.material.R.attr.colorOnSurface, night ? 0xFFE5E1E9 : 0xFF1B1B21);
+        sub = com.google.android.material.color.MaterialColors.getColor(this,
+                com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF777777);
+        field = com.google.android.material.color.MaterialColors.getColor(this,
+                com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFFEEEEEE);
         getWindow().getDecorView().setSystemUiVisibility(night ? 0
                 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         getWindow().setSoftInputMode(

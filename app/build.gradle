@@ -35,3 +35,8 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+// Material Design 3 组件
+dependencies {
+    implementation 'com.google.android.material:material:1.12.0'
+}
