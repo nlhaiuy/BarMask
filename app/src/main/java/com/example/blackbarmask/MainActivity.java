@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private Slider slider;
     private EditText offsetInput;
     private boolean offsetBusy = false;
+    private int lastTick = Integer.MIN_VALUE;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -171,12 +172,24 @@ public class MainActivity extends AppCompatActivity {
             offsetInput.setText(String.valueOf(o));
             offsetBusy = false;
             offsetInput.clearFocus();
+            lastTick = o;
+            tick(o);
             changed();
         };
 
         slider.addOnChangeListener((s, value, fromUser) -> {
             if (!fromUser || offsetBusy) return;
             int o = (int) value;
+            // 阻尼：0 附近有“吸附”，拖到 ±3 以内会被吸到 0
+            if (o != 0 && Math.abs(o) <= 3) {
+                o = 0;
+                offsetBusy = true;
+                slider.setValue(0);
+                offsetBusy = false;
+            }
+            if (o == lastTick) return;
+            lastTick = o;
+            tick(o);
             sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
             offsetBusy = true;
             offsetInput.setText(String.valueOf(o));
@@ -297,6 +310,20 @@ public class MainActivity extends AppCompatActivity {
             startForegroundService(new Intent(this, MaskService.class));
         }
         AutoMode.evaluate(this);
+    }
+
+    /** 拖动滑块的触感：每格一下轻点，每 10dp 和 0 点位更明显。 */
+    private void tick(int o) {
+        boolean major = o % 10 == 0;
+        int type;
+        if (Build.VERSION.SDK_INT >= 34) {
+            type = major ? android.view.HapticFeedbackConstants.SEGMENT_TICK
+                    : android.view.HapticFeedbackConstants.SEGMENT_FREQUENT_TICK;
+        } else {
+            type = major ? android.view.HapticFeedbackConstants.CONTEXT_CLICK
+                    : android.view.HapticFeedbackConstants.CLOCK_TICK;
+        }
+        slider.performHapticFeedback(type);
     }
 
     private int dp(int v) {
