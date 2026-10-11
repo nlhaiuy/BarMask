@@ -39,9 +39,8 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences sp;
     private float density;
     private MaterialButton btn, banner;
-    private TextView appsTv;
+    private TextView appsTv, appsCount;
     private ImageView arrow;
-    private LinearLayout iconBox;
     private View appsRow;
     private PreviewView preview;
     private Slider slider;
@@ -76,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
         appsRow = findViewById(R.id.apps_row);
         appsTv = findViewById(R.id.apps_tv);
         arrow = findViewById(R.id.arrow);
-        iconBox = findViewById(R.id.icon_box);
+        appsCount = findViewById(R.id.apps_count);
         slider = findViewById(R.id.slider);
         offsetInput = findViewById(R.id.offset_input);
 
@@ -246,36 +245,12 @@ public class MainActivity extends AppCompatActivity {
     /** 白名单软件入口：位置和高度保持不变，只是文字渐变替换，界面不跳动。 */
     private void refreshAuto() {
         boolean whitelist = AutoMode.isEnabled(this);
-        final String text = whitelist
-                ? "管理应用（已选 " + installedSelectedCount() + " 个）"
-                : "全局模式：横屏时始终盖白边";
+        final String text = whitelist ? "管理白名单应用" : "全局模式：横屏时始终盖白边";
         appsRow.setClickable(whitelist);
         appsRow.setEnabled(whitelist);
         arrow.setVisibility(whitelist ? View.VISIBLE : View.GONE);
-        iconBox.removeAllViews();
-        if (whitelist) {
-            PackageManager pm = getPackageManager();
-            int shown = 0;
-            int surface = color(com.google.android.material.R.attr.colorSurfaceContainerHighest);
-            for (String pkg : AutoMode.selectedApps(this)) {
-                if (shown >= 4) break;
-                try {
-                    ImageView iv = new ImageView(this);
-                    iv.setImageDrawable(pm.getApplicationIcon(pkg));
-                    GradientDrawable ring = new GradientDrawable();
-                    ring.setColor(surface);
-                    ring.setCornerRadius(dp(15));
-                    ring.setStroke(dp(2), surface);
-                    iv.setBackground(ring);
-                    iv.setPadding(dp(2), dp(2), dp(2), dp(2));
-                    LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(30), dp(30));
-                    if (shown > 0) ilp.leftMargin = -dp(9);
-                    iconBox.addView(iv, ilp);
-                    shown++;
-                } catch (Exception ignored) { }
-            }
-            if (shown > 0) iconBox.addView(new View(this), new LinearLayout.LayoutParams(dp(12), 1));
-        }
+        appsCount.setVisibility(whitelist ? View.VISIBLE : View.GONE);
+        appsCount.setText("已选 " + installedSelectedCount() + " 个");
         if (!text.contentEquals(appsTv.getText())) {
             if (appsTv.getText().length() == 0) {
                 appsTv.setText(text);

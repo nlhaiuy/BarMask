@@ -49,6 +49,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:focusableInTouchMode="true"
             android:gravity="center_vertical"
             android:orientation="vertical"
             android:paddingStart="16dp"
@@ -122,45 +123,44 @@
                             android:text="全局" />
                     </com.google.android.material.button.MaterialButtonToggleGroup>
 
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/apps_row"
-                        style="@style/Widget.Material3.CardView.Outlined"
+                    <com.google.android.material.divider.MaterialDivider
                         android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:layout_marginTop="12dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp" />
+
+                    <LinearLayout
+                        android:id="@+id/apps_row"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:background="?attr/selectableItemBackground"
                         android:clickable="true"
-                        android:focusable="true">
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:paddingStart="16dp"
-                            android:paddingEnd="8dp">
+                        <TextView
+                            android:id="@+id/apps_tv"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textAppearance="?attr/textAppearanceBodyLarge" />
 
-                            <LinearLayout
-                                android:id="@+id/icon_box"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal" />
+                        <TextView
+                            android:id="@+id/apps_count"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
 
-                            <TextView
-                                android:id="@+id/apps_tv"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:textAppearance="?attr/textAppearanceBodyLarge" />
-
-                            <ImageView
-                                android:id="@+id/arrow"
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:importantForAccessibility="no"
-                                android:src="@drawable/ic_chevron"
-                                app:tint="?attr/colorOnSurfaceVariant" />
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
+                        <ImageView
+                            android:id="@+id/arrow"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginStart="4dp"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_chevron"
+                            app:tint="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -261,7 +261,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:paddingStart="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="8dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -276,36 +279,10 @@
                             android:text="边缘宽度微调"
                             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/reset"
-                            style="@style/Widget.Material3.Button.TextButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="重置" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/minus"
-                            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:contentDescription="减小"
-                            app:icon="@drawable/ic_minus" />
-
                         <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                            android:layout_width="0dp"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                            android:layout_width="104dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:layout_marginEnd="8dp"
-                            android:layout_weight="1"
                             app:suffixText="dp">
 
                             <com.google.android.material.textfield.TextInputEditText
@@ -320,23 +297,48 @@
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.button.MaterialButton
-                            android:id="@+id/plus"
-                            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                            android:id="@+id/reset"
+                            style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="重置" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/minus"
+                            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:contentDescription="减小"
+                            app:icon="@drawable/ic_minus" />
+
+                        <com.google.android.material.slider.Slider
+                            android:id="@+id/slider"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:stepSize="1"
+                            android:valueFrom="-100"
+                            android:valueTo="100"
+                            app:labelBehavior="floating" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/plus"
+                            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
                             android:contentDescription="增大"
                             app:icon="@drawable/ic_plus" />
                     </LinearLayout>
-
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/slider"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:valueFrom="-100"
-                        android:valueTo="100"
-                        android:stepSize="1"
-                        app:labelBehavior="floating" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
