@@ -12,6 +12,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -45,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText offsetInput;
     private boolean offsetBusy = false;
     private int lastTick = Integer.MIN_VALUE;
+    private Vibrator vib;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -68,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
         getWindow().getDecorView().setSystemUiVisibility(night ? 0
                 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
+        vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
         btn = findViewById(R.id.btn);
         banner = findViewById(R.id.banner);
         preview = findViewById(R.id.preview);
@@ -312,18 +316,17 @@ public class MainActivity extends AppCompatActivity {
         AutoMode.evaluate(this);
     }
 
-    /** 拖动滑块的触感：每格一下轻点，每 10dp 和 0 点位更明显。 */
+    /** 拖动滑块的触感：每 1dp 一下清脆的“嗒”，每 10dp 和 0 点位换成更实的“咔”。 */
     private void tick(int o) {
         boolean major = o % 10 == 0;
-        int type;
-        if (Build.VERSION.SDK_INT >= 34) {
-            type = major ? android.view.HapticFeedbackConstants.SEGMENT_TICK
-                    : android.view.HapticFeedbackConstants.SEGMENT_FREQUENT_TICK;
-        } else {
-            type = major ? android.view.HapticFeedbackConstants.CONTEXT_CLICK
-                    : android.view.HapticFeedbackConstants.CLOCK_TICK;
+        if (vib != null && vib.hasVibrator() && Build.VERSION.SDK_INT >= 29) {
+            vib.vibrate(VibrationEffect.createPredefined(major
+                    ? VibrationEffect.EFFECT_CLICK : VibrationEffect.EFFECT_TICK));
+            return;
         }
-        slider.performHapticFeedback(type);
+        slider.performHapticFeedback(major
+                ? android.view.HapticFeedbackConstants.CONTEXT_CLICK
+                : android.view.HapticFeedbackConstants.CLOCK_TICK);
     }
 
     private int dp(int v) {
