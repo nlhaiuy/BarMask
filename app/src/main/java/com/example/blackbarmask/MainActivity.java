@@ -94,29 +94,6 @@ public class MainActivity extends Activity {
         page.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        // ---- 总开关：大圆键 ----
-        btn = new TextView(this);
-        btn.setGravity(Gravity.CENTER);
-        btn.setTextSize(20);
-        btn.setTextColor(Color.WHITE);
-        btn.setTypeface(Typeface.DEFAULT_BOLD);
-        btn.setElevation(dp(8));
-        btn.setOnClickListener(v -> toggle());
-        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(dp(132), dp(132));
-        flp.gravity = Gravity.CENTER_HORIZONTAL;
-        flp.topMargin = dp(8);
-        root.addView(btn, flp);
-
-        statusTv = new TextView(this);
-        statusTv.setGravity(Gravity.CENTER);
-        statusTv.setTextSize(14);
-        statusTv.setTextColor(SUB);
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        slp.topMargin = dp(14);
-        slp.bottomMargin = dp(24);
-        root.addView(statusTv, slp);
-
         // ---- 缺权限时才出现的提示条 ----
         banner = new TextView(this);
         banner.setTextSize(14);
@@ -133,6 +110,30 @@ public class MainActivity extends Activity {
         root.addView(modeCard());
         root.addView(displayCard());
         root.addView(offsetCard());
+
+        // ---- 底部：状态说明 + 通栏总开关（拇指最容易按到）----
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.VERTICAL);
+        bottom.setPadding(dp(16), dp(4), dp(16), dp(20));
+        statusTv = new TextView(this);
+        statusTv.setGravity(Gravity.CENTER);
+        statusTv.setTextSize(13);
+        statusTv.setTextColor(SUB);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.bottomMargin = dp(10);
+        bottom.addView(statusTv, slp);
+        btn = new TextView(this);
+        btn.setGravity(Gravity.CENTER);
+        btn.setTextSize(18);
+        btn.setTextColor(Color.WHITE);
+        btn.setTypeface(Typeface.DEFAULT_BOLD);
+        btn.setElevation(dp(4));
+        btn.setOnClickListener(v -> toggle());
+        bottom.addView(btn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
+        page.addView(bottom, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         setContentView(page);
         updateUi();
@@ -260,14 +261,11 @@ public class MainActivity extends Activity {
     /** 总开关按钮：开着显示“关闭白边”，关着显示“开启白边”。 */
     private void updateUi() {
         boolean on = AutoMode.isMaster(this);
-        btn.setText(on ? "已开启" : "已关闭");
-        GradientDrawable g = new GradientDrawable();
-        g.setShape(GradientDrawable.OVAL);
-        g.setColor(on ? ACCENT : 0xFF9CA3AF);
-        btn.setBackground(g);
+        btn.setText(on ? "关闭白边" : "开启白边");
+        btn.setBackground(round(on ? OFF_BTN : ACCENT, 30));
         statusTv.setText(on
                 ? (AutoMode.isEnabled(this) ? "白名单软件横屏时自动盖白边" : "横屏时始终盖白边")
-                : "点击圆键开启");
+                : "白边已关闭");
         refreshPerms();
     }
 
