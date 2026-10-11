@@ -261,26 +261,38 @@
                             android:text="边缘宽度微调"
                             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                            android:layout_width="104dp"
-                            android:layout_height="wrap_content"
-                            app:boxCornerRadiusBottomEnd="20dp"
-                            app:boxCornerRadiusBottomStart="20dp"
-                            app:boxCornerRadiusTopEnd="20dp"
-                            app:boxCornerRadiusTopStart="20dp"
-                            app:suffixText="dp">
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_input"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp">
 
-                            <com.google.android.material.textfield.TextInputEditText
+                            <EditText
                                 android:id="@+id/offset_input"
-                                android:layout_width="match_parent"
+                                android:layout_width="40dp"
                                 android:layout_height="wrap_content"
+                                android:background="@null"
                                 android:gravity="center"
                                 android:imeOptions="actionDone"
+                                android:importantForAutofill="no"
                                 android:inputType="numberSigned"
                                 android:maxLength="4"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
+                                android:padding="0dp"
+                                android:singleLine="true"
+                                android:textAppearance="?attr/textAppearanceBodyLarge"
+                                android:textColor="?attr/colorOnSurface" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:text="dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+                        </LinearLayout>
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/reset"
