@@ -155,6 +155,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         slp.bottomMargin = dp(10);
+        statusTv.setVisibility(View.GONE); // 不再显示底部提示
         bottom.addView(statusTv, slp);
         btn = new TextView(this);
         btn.setGravity(Gravity.CENTER);
@@ -665,11 +666,14 @@ public class MainActivity extends Activity {
         final TextView[] chips = new TextView[labels.length];
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        GradientDrawable frame = round(CARD, 22);
-        frame.setStroke(dp(1), OUTLINE);
-        row.setBackground(frame);
+        // 底色负责裁出圆角，描边画在最上层（foreground），这样边线是完整连续的
+        row.setBackground(round(CARD, 23));
         row.setClipToOutline(true);
-        row.setPadding(dp(1), dp(1), dp(1), dp(1));
+        GradientDrawable frame = new GradientDrawable();
+        frame.setColor(Color.TRANSPARENT);
+        frame.setCornerRadius(dp(23));
+        frame.setStroke(dp(1), OUTLINE);
+        row.setForeground(frame);
         parent.addView(row, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
         for (int i = 0; i < labels.length; i++) {
