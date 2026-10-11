@@ -39,9 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences sp;
     private float density;
     private MaterialButton btn, banner;
-    private TextView appsTv, appsCount;
-    private ImageView arrow;
-    private View appsRow;
+    private MaterialButton appsRow;
     private PreviewView preview;
     private Slider slider;
     private TextInputEditText offsetInput;
@@ -73,9 +71,6 @@ public class MainActivity extends AppCompatActivity {
         banner = findViewById(R.id.banner);
         preview = findViewById(R.id.preview);
         appsRow = findViewById(R.id.apps_row);
-        appsTv = findViewById(R.id.apps_tv);
-        arrow = findViewById(R.id.arrow);
-        appsCount = findViewById(R.id.apps_count);
         slider = findViewById(R.id.slider);
         offsetInput = findViewById(R.id.offset_input);
 
@@ -242,29 +237,14 @@ public class MainActivity extends AppCompatActivity {
         refreshPerms();
     }
 
-    /** 白名单软件入口：位置和高度保持不变，只是文字渐变替换，界面不跳动。 */
+    /** 白名单入口：只在白名单模式显示，淡入淡出，位置不变所以界面不跳动。 */
     private void refreshAuto() {
         boolean whitelist = AutoMode.isEnabled(this);
-        final String text = whitelist ? "管理白名单应用" : "全局模式：横屏时始终盖白边";
-        appsRow.setClickable(whitelist);
+        appsRow.setText("管理应用 · " + installedSelectedCount());
         appsRow.setEnabled(whitelist);
-        arrow.setVisibility(whitelist ? View.VISIBLE : View.GONE);
-        appsCount.setVisibility(whitelist ? View.VISIBLE : View.GONE);
-        appsCount.setText("已选 " + installedSelectedCount() + " 个");
-        if (!text.contentEquals(appsTv.getText())) {
-            if (appsTv.getText().length() == 0) {
-                appsTv.setText(text);
-            } else {
-                appsTv.animate().cancel();
-                appsTv.animate().alpha(0f).setDuration(110).withEndAction(() -> {
-                    appsTv.setText(text);
-                    appsTv.animate().alpha(1f).setDuration(110).start();
-                }).start();
-            }
-        }
-        appsTv.setTextColor(color(whitelist
-                ? com.google.android.material.R.attr.colorOnSurface
-                : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        appsRow.setClickable(whitelist);
+        appsRow.animate().cancel();
+        appsRow.animate().alpha(whitelist ? 1f : 0f).setDuration(180).start();
         updateUi();
     }
 

@@ -1,25 +1,32 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 柔和投影 -->
-    <path
-        android:fillColor="#33000000"
-        android:pathData="M34,38.5h40a6,6 0 0 1 6,6v24a6,6 0 0 1 -6,6h-40a6,6 0 0 1 -6,-6v-24a6,6 0 0 1 6,-6z" />
-    <!-- 白色横屏（两侧即“白色遮罩”） -->
+    <!-- 中间的视频画面 -->
+    <path android:pathData="M36,34h36v40h-36z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="36"
+                android:startY="34"
+                android:endX="72"
+                android:endY="74"
+                android:type="linear">
+                <item android:color="#7C7CFF" android:offset="0.0" />
+                <item android:color="#38BDF8" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 左右两条白边 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M34,36h40a6,6 0 0 1 6,6v24a6,6 0 0 1 -6,6h-40a6,6 0 0 1 -6,-6v-24a6,6 0 0 1 6,-6z" />
-    <!-- 深色视频区 -->
-    <path
-        android:fillColor="#0B1020"
-        android:pathData="M39,36h30v36h-30z" />
-    <!-- 圆形播放键 -->
+        android:pathData="M30,34h6v40h-6a8,8 0 0 1 -8,-8v-24a8,8 0 0 1 8,-8z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M47,54a7,7 0 1 0 14,0a7,7 0 1 0 -14,0z" />
+        android:pathData="M78,34h-6v40h6a8,8 0 0 0 8,-8v-24a8,8 0 0 0 -8,-8z" />
+    <!-- 播放键 -->
     <path
-        android:fillColor="#5B5BF0"
-        android:pathData="M52.3,50.6l6,3.4l-6,3.4z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M50.5,47.5l11,6.5l-11,6.5z" />
 </vector>
