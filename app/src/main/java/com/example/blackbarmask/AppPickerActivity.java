@@ -82,7 +82,7 @@ public class AppPickerActivity extends Activity {
         countTv = new TextView(this);
         countTv.setTextSize(13);
         countTv.setTextColor(0xFF6B7280);
-        countTv.setText("正在加载应用列表…");
+        countTv.setText("");
         head.addView(countTv);
 
         // 搜索框
@@ -175,7 +175,7 @@ public class AppPickerActivity extends Activity {
     private void updateCount() {
         int n = 0;
         for (Item it : all) if (it.checked) n++;
-        countTv.setText("已添加 " + n + " 个，点一下即可添加/移除"
+        countTv.setText("已选 " + n + " 个"
                 + (search.getText().length() > 0 ? "（搜到 " + shown.size() + " 个）" : ""));
     }
 
