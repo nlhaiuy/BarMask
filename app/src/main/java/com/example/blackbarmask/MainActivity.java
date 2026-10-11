@@ -4,7 +4,14 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.util.DisplayMetrics;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -44,17 +51,29 @@ public class MainActivity extends Activity {
     private static final String[] STRENGTH_NAMES = {"标准", "加强"};
     private static final int[] STRENGTH_LAYERS = {1, 3};
 
-    private static final int BG = 0xFFF3F4F8;
-    private static final int ACCENT = 0xFF4F46E5;
-    private static final int ACCENT_SOFT = 0xFFE0E7FF;
-    private static final int TEXT = 0xFF111827;
-    private static final int SUB = 0xFF6B7280;
-    private static final int CHIP = 0xFFEEF0F6;
-    private static final int OFF_BTN = 0xFF374151;
+    // 颜色按系统浅色 / 深色模式取值（Material 3 色调）
+    private boolean night;
+    private int BG, CARD, ACCENT, ON_ACCENT, ACCENT_SOFT, SEL_TEXT, TEXT, SUB, CHIP, OUTLINE,
+            OFF_BTN, ON_OFF_BTN;
+
+    private void initColors() {
+        night = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        if (night) {
+            BG = 0xFF121218; CARD = 0xFF1E1E27; ACCENT = 0xFFBDBFFF; ON_ACCENT = 0xFF1E1B6B;
+            ACCENT_SOFT = 0xFF3A3C6E; SEL_TEXT = 0xFFE0E0FF; TEXT = 0xFFE5E1E9; SUB = 0xFF9E9DAC;
+            CHIP = 0xFF2B2B36; OUTLINE = 0xFF4A4A56; OFF_BTN = 0xFF3A3A47; ON_OFF_BTN = 0xFFE5E1E9;
+        } else {
+            BG = 0xFFF6F5FB; CARD = 0xFFFFFFFF; ACCENT = 0xFF4F46E5; ON_ACCENT = 0xFFFFFFFF;
+            ACCENT_SOFT = 0xFFE0E7FF; SEL_TEXT = 0xFF312E81; TEXT = 0xFF1B1B21; SUB = 0xFF5F6070;
+            CHIP = 0xFFEEF0F6; OUTLINE = 0xFFC7C5D0; OFF_BTN = 0xFF3F3F4A; ON_OFF_BTN = 0xFFFFFFFF;
+        }
+    }
 
     private SharedPreferences sp;
     private float density;
     private TextView btn, appsTv, banner, statusTv;
+    private Preview preview;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -66,11 +85,12 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         sp = getSharedPreferences(MaskService.PREFS, MODE_PRIVATE);
         density = getResources().getDisplayMetrics().density;
+        initColors();
 
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        getWindow().getDecorView().setSystemUiVisibility(night ? 0
+                : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
         // 顶部：图标 + 标题；中间：大圆形电源键 + 状态；下面：设置卡片
         LinearLayout page = new LinearLayout(this);
@@ -80,13 +100,13 @@ public class MainActivity extends Activity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.setPadding(dp(20), dp(16), dp(20), dp(4));
+        head.setPadding(dp(24), dp(20), dp(24), dp(8));
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.mipmap.ic_launcher);
-        head.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        head.addView(logo, new LinearLayout.LayoutParams(dp(44), dp(44)));
         TextView title = new TextView(this);
         title.setText("白边");
-        title.setTextSize(22);
+        title.setTextSize(30);
         title.setTextColor(TEXT);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setPadding(dp(12), 0, 0, 0);
@@ -118,6 +138,7 @@ public class MainActivity extends Activity {
         blp.bottomMargin = dp(12);
         root.addView(banner, blp);
 
+        root.addView(previewCard());
         root.addView(modeCard());
         root.addView(displayCard());
         root.addView(offsetCard());
@@ -137,9 +158,8 @@ public class MainActivity extends Activity {
         btn = new TextView(this);
         btn.setGravity(Gravity.CENTER);
         btn.setTextSize(18);
-        btn.setTextColor(Color.WHITE);
         btn.setTypeface(Typeface.DEFAULT_BOLD);
-        btn.setElevation(dp(4));
+        btn.setElevation(dp(2));
         btn.setOnClickListener(v -> toggle());
         bottom.addView(btn, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
@@ -284,7 +304,7 @@ public class MainActivity extends Activity {
         sb.setProgressDrawable(ld);
         GradientDrawable thumb = new GradientDrawable();
         thumb.setShape(GradientDrawable.OVAL);
-        thumb.setColor(Color.WHITE);
+        thumb.setColor(CARD);
         thumb.setStroke(dp(4), ACCENT);
         thumb.setSize(dp(30), dp(30));
         sb.setThumb(thumb);
@@ -362,6 +382,8 @@ public class MainActivity extends Activity {
         boolean on = AutoMode.isMaster(this);
         btn.setText(on ? "关闭白边" : "开启白边");
         btn.setBackground(round(on ? OFF_BTN : ACCENT, 30));
+        btn.setTextColor(on ? ON_OFF_BTN : ON_ACCENT);
+        if (preview != null) preview.setOn(on);
         statusTv.setText(on
                 ? (AutoMode.isEnabled(this) ? "白名单软件横屏时自动盖白边" : "横屏时始终盖白边")
                 : "白边已关闭");
@@ -437,6 +459,7 @@ public class MainActivity extends Activity {
 
     /** 设置有变化：让正在显示的白边立刻刷新。 */
     private void changed() {
+        if (preview != null) preview.invalidate();
         if (MaskService.running) {
             startForegroundService(new Intent(this, MaskService.class));
         }
@@ -560,7 +583,7 @@ public class MainActivity extends Activity {
     private LinearLayout card() {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        c.setBackground(round(Color.WHITE, 16));
+        c.setBackground(round(CARD, 20));
         c.setPadding(dp(16), dp(16), dp(16), dp(16));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -581,63 +604,149 @@ public class MainActivity extends Activity {
 
     private interface OnPick { void pick(int position); }
 
-    /** 一排“药丸”单选按钮，每个等宽。 */
+    /** M3 分段按钮：一条描边圆角容器，里面等宽分段，选中段填充淡色。 */
     private void addChips(LinearLayout parent, String[] labels, int perRow, int selected, OnPick cb) {
         final TextView[] chips = new TextView[labels.length];
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        GradientDrawable frame = round(CARD, 22);
+        frame.setStroke(dp(1), OUTLINE);
+        row.setBackground(frame);
+        row.setClipToOutline(true);
+        row.setPadding(dp(1), dp(1), dp(1), dp(1));
         parent.addView(row, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
         for (int i = 0; i < labels.length; i++) {
+            if (i > 0) {
+                View d = new View(this);
+                d.setBackgroundColor(OUTLINE);
+                row.addView(d, new LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT));
+            }
             TextView t = new TextView(this);
             t.setText(labels[i]);
             t.setGravity(Gravity.CENTER);
-            t.setTextSize(16);
-            t.setPadding(0, dp(12), 0, dp(12));
+            t.setTextSize(15);
             chips[i] = t;
             final int idx = i;
             t.setOnClickListener(x -> {
+                if (idx == currentSel(chips)) return;
                 styleChips(chips, idx);
                 cb.pick(idx);
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            if (i > 0) lp.leftMargin = dp(8);
-            row.addView(t, lp);
+            row.addView(t, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
         }
         styleChips(chips, selected);
     }
 
-    /** 切换选中项：背景色/文字色渐变，被选中的药丸轻微弹一下。首次设置不播动画。 */
+    private int currentSel(TextView[] chips) {
+        for (int i = 0; i < chips.length; i++) {
+            if (Boolean.TRUE.equals(chips[i].getTag())) return i;
+        }
+        return -1;
+    }
+
+    /** 切换选中段：背景色 / 文字色渐变。首次设置不播动画。 */
     private void styleChips(TextView[] chips, int sel) {
         for (int i = 0; i < chips.length; i++) {
             final TextView t = chips[i];
             final boolean on = i == sel;
             Object prev = t.getTag();
-            final int toBg = on ? ACCENT : CHIP, toFg = on ? Color.WHITE : TEXT;
+            final int toBg = on ? ACCENT_SOFT : CARD, toFg = on ? SEL_TEXT : TEXT;
+            t.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             if (prev == null) {
-                t.setBackground(round(toBg, 12));
+                t.setBackgroundColor(toBg);
                 t.setTextColor(toFg);
             } else if ((Boolean) prev != on) {
-                final int fromBg = on ? CHIP : ACCENT, fromFg = on ? TEXT : Color.WHITE;
+                final int fromBg = on ? CARD : ACCENT_SOFT, fromFg = on ? TEXT : SEL_TEXT;
                 final ArgbEvaluator ev = new ArgbEvaluator();
                 ValueAnimator va = ValueAnimator.ofFloat(0f, 1f);
                 va.setDuration(220);
                 va.addUpdateListener(an -> {
                     float f = (Float) an.getAnimatedValue();
-                    t.setBackground(round((Integer) ev.evaluate(f, fromBg, toBg), 12));
+                    t.setBackgroundColor((Integer) ev.evaluate(f, fromBg, toBg));
                     t.setTextColor((Integer) ev.evaluate(f, fromFg, toFg));
                 });
                 va.start();
-                if (on) {
-                    t.animate().cancel();
-                    t.setScaleX(0.94f);
-                    t.setScaleY(0.94f);
-                    t.animate().scaleX(1f).scaleY(1f).setDuration(220)
-                            .setInterpolator(new OvershootInterpolator(2f)).start();
-                }
             }
             t.setTag(on);
+        }
+    }
+
+    // ---------------- 效果预览 ----------------
+
+    private LinearLayout previewCard() {
+        LinearLayout c = card();
+        c.setPadding(dp(12), dp(12), dp(12), dp(12));
+        preview = new Preview(this);
+        c.addView(preview, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(116)));
+        return c;
+    }
+
+    /** 横屏手机示意：黑色屏幕 + 视频区域，开启后两侧黑边变白。读取当前比例和微调值。 */
+    private class Preview extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final ArgbEvaluator ev = new ArgbEvaluator();
+        private float amount = AutoMode.isMaster(MainActivity.this) ? 1f : 0f; // 0=黑边 1=白边
+        private ValueAnimator anim;
+
+        Preview(Context c) { super(c); }
+
+        void setOn(boolean on) {
+            float to = on ? 1f : 0f;
+            if (anim != null) anim.cancel();
+            if (!isLaidOut()) { amount = to; invalidate(); return; }
+            anim = ValueAnimator.ofFloat(amount, to);
+            anim.setDuration(260);
+            anim.addUpdateListener(a -> { amount = (Float) a.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
+
+        @Override protected void onDraw(Canvas cv) {
+            float W = getWidth(), H = getHeight();
+            DisplayMetrics m = getResources().getDisplayMetrics();
+            float longPx = Math.max(m.widthPixels, m.heightPixels);
+            float shortPx = Math.min(m.widthPixels, m.heightPixels);
+            float aspect = Math.max(16f / 9f, Math.min(2.4f, longPx / shortPx));
+            float sw = Math.min(W - dp(8), (H - dp(8)) * aspect), sh = sw / aspect;
+            float l = (W - sw) / 2f, t = (H - sh) / 2f, r = l + sw, b = t + sh;
+            float scale = sw / (longPx / m.density);
+
+            // 机身
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(night ? 0xFF3A3A47 : 0xFF2B2B33);
+            cv.drawRoundRect(new RectF(l - dp(4), t - dp(4), r + dp(4), b + dp(4)), dp(14), dp(14), paint);
+
+            Path clip = new Path();
+            clip.addRoundRect(new RectF(l, t, r, b), dp(10), dp(10), Path.Direction.CW);
+            cv.save();
+            cv.clipPath(clip);
+            paint.setColor(0xFF000000);
+            cv.drawRect(l, t, r, b, paint);
+
+            float ratio = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
+            float vw = Math.min(sw, sh * ratio);
+            float vl = l + (sw - vw) / 2f;
+            paint.setColor(0xFF4B5563);
+            cv.drawRect(vl, t, vl + vw, b, paint);
+            // 播放三角
+            paint.setColor(0xB3FFFFFF);
+            float cx = l + sw / 2f, cy = t + sh / 2f, ts = sh * 0.16f;
+            Path tri = new Path();
+            tri.moveTo(cx - ts * 0.6f, cy - ts);
+            tri.lineTo(cx - ts * 0.6f, cy + ts);
+            tri.lineTo(cx + ts, cy);
+            tri.close();
+            cv.drawPath(tri, paint);
+
+            // 两侧遮罩，宽度算法与真实遮罩一致
+            float bar = (sw - sh * ratio) / 2f + sp.getInt(MaskService.KEY_OFFSET, 0) * density * scale;
+            bar = Math.max(0f, Math.min(bar, sw / 2f));
+            paint.setColor((Integer) ev.evaluate(amount, 0xFF000000, 0xFFFFFFFF));
+            cv.drawRect(l, t, l + bar, b, paint);
+            cv.drawRect(r - bar, t, r, b, paint);
+            cv.restore();
         }
     }
 }

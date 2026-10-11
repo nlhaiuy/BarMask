@@ -50,6 +50,8 @@ public class AppPickerActivity extends Activity {
     private EditText search;
     private TextView countTv;
     private float density;
+    private boolean night;
+    private int bg, text, sub, field;
 
     private int dp(int v) {
         return Math.round(v * density);
@@ -59,16 +61,23 @@ public class AppPickerActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         density = getResources().getDisplayMetrics().density;
-        getWindow().setStatusBarColor(Color.WHITE);
-        getWindow().setNavigationBarColor(Color.WHITE);
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        night = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        bg = night ? 0xFF121218 : 0xFFF6F5FB;
+        text = night ? 0xFFE5E1E9 : 0xFF1B1B21;
+        sub = night ? 0xFF9E9DAC : 0xFF5F6070;
+        field = night ? 0xFF2B2B36 : 0xFFEEF0F6;
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(bg);
+        getWindow().getDecorView().setSystemUiVisibility(night ? 0
+                : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(Color.WHITE);
+        page.setBackgroundColor(bg);
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.VERTICAL);
@@ -76,12 +85,12 @@ public class AppPickerActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("白名单");
         title.setTextSize(20);
-        title.setTextColor(0xFF111827);
+        title.setTextColor(text);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         head.addView(title);
         countTv = new TextView(this);
         countTv.setTextSize(13);
-        countTv.setTextColor(0xFF6B7280);
+        countTv.setTextColor(sub);
         countTv.setText("");
         head.addView(countTv);
 
@@ -92,7 +101,9 @@ public class AppPickerActivity extends Activity {
         search.setTextSize(15);
         search.setPadding(dp(14), dp(10), dp(14), dp(10));
         GradientDrawable sbg = new GradientDrawable();
-        sbg.setColor(0xFFEEF0F6);
+        sbg.setColor(field);
+        search.setTextColor(text);
+        search.setHintTextColor(sub);
         sbg.setCornerRadius(dp(12));
         search.setBackground(sbg);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
@@ -199,7 +210,7 @@ public class AppPickerActivity extends Activity {
             TextView name = new TextView(AppPickerActivity.this);
             name.setText(it.label);
             name.setTextSize(16);
-            name.setTextColor(0xFF111827);
+            name.setTextColor(text);
             name.setPadding(dp(14), 0, dp(8), 0);
             row.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
