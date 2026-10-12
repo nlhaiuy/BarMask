@@ -99,7 +99,7 @@ public class AppPickerActivity extends Activity {
 
         // 搜索框
         search = new EditText(this);
-        search.setHint("搜索软件名称");
+        search.setHint("搜索应用");
         search.setSingleLine(true);
         search.setTextSize(15);
         search.setPadding(dp(14), dp(10), dp(14), dp(10));
@@ -190,7 +190,7 @@ public class AppPickerActivity extends Activity {
         int n = 0;
         for (Item it : all) if (it.checked) n++;
         countTv.setText("已选 " + n + " 个"
-                + (search.getText().length() > 0 ? "（搜到 " + shown.size() + " 个）" : ""));
+                + (search.getText().length() > 0 ? " · 搜到 " + shown.size() + " 个" : ""));
     }
 
     private class Adapter extends BaseAdapter {

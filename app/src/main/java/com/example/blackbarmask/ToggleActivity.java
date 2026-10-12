@@ -17,7 +17,7 @@ public class ToggleActivity extends Activity {
         } else if (Settings.canDrawOverlays(this)) {
             AutoMode.setMaster(this, true);
         } else {
-            Toast.makeText(this, "请先允许“显示在其他应用上层”", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "请先允许悬浮窗权限", Toast.LENGTH_LONG).show();
             startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName())));
         }

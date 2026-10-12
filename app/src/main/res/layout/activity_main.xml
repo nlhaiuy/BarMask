@@ -103,7 +103,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="功能模式"
+                            android:text="模式"
                             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                         <com.google.android.material.button.MaterialButton
@@ -146,7 +146,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 视频与遮盖设置 -->
+            <!-- 视频比例 / 遮盖强度 -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.Material3.CardView.Filled"
                 android:layout_width="match_parent"
@@ -158,21 +158,12 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="16dp">
-
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="视频与遮盖设置"
+                        android:layout_marginBottom="12dp"
+                        android:text="视频比例"
                         android:textAppearance="?attr/textAppearanceTitleMedium" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="8dp"
-                        android:text="视频比例匹配"
-                        android:textAppearance="?attr/textAppearanceLabelLarge"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
 
                     <com.google.android.material.button.MaterialButtonToggleGroup
                         android:id="@+id/ratio_group"
@@ -201,11 +192,10 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginBottom="8dp"
-                        android:text="遮盖深度"
-                        android:textAppearance="?attr/textAppearanceLabelLarge"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:layout_marginTop="20dp"
+                        android:layout_marginBottom="12dp"
+                        android:text="遮盖强度"
+                        android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                     <com.google.android.material.button.MaterialButtonToggleGroup
                         android:id="@+id/strength_group"
@@ -259,7 +249,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="边缘宽度微调"
+                            android:text="宽度微调"
                             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                         <LinearLayout

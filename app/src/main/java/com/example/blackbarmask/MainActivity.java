@@ -278,7 +278,7 @@ public class MainActivity extends AppCompatActivity {
             banner.setVisibility(View.GONE);
         } else {
             banner.setVisibility(View.VISIBLE);
-            banner.setText("还差：" + String.join("、", lack) + "，点这里一键设置");
+            banner.setText("还需授权：" + String.join("、", lack) + " · 去设置");
         }
     }
 
@@ -395,12 +395,11 @@ public class MainActivity extends AppCompatActivity {
     /** 无障碍没开成功：最常见的原因是系统对“非商店安装”的软件置灰了该选项。 */
     private void showRestrictedHelp() {
         new AlertDialog.Builder(this)
-                .setTitle("无障碍选项是灰色的？")
-                .setMessage("1. 点“打开应用信息页”\n"
-                        + "2. 点右上角 ⋮ 菜单\n"
-                        + "3. 选“允许受限制的设置”\n"
-                        + "4. 返回白边，再点提示条")
-                .setPositiveButton("打开应用信息页", (d, w) -> startActivity(new Intent(
+                .setTitle("无障碍选项是灰色的")
+                .setMessage("1. 打开应用信息页\n"
+                        + "2. 右上角 ⋮ → 允许受限制的设置\n"
+                        + "3. 回到白边，再点一次设置")
+                .setPositiveButton("应用信息", (d, w) -> startActivity(new Intent(
                         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:" + getPackageName()))))
                 .setNegativeButton("取消", null)

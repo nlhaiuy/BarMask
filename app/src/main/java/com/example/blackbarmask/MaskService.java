@@ -47,8 +47,7 @@ public class MaskService extends Service {
         nm.createNotificationChannel(new NotificationChannel(
                 CHANNEL_ID, "白边", NotificationManager.IMPORTANCE_LOW));
         Notification n = new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("白边运行中")
-                .setContentText("两侧黑边已盖成白色")
+                .setContentTitle("白边已开启")
                 .setSmallIcon(R.drawable.ic_tile)
                 .setOngoing(true)
                 .build();
