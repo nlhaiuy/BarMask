@@ -309,17 +309,19 @@ public class MainActivity extends AppCompatActivity {
         AutoMode.evaluate(this);
     }
 
-    /** 拖动滑块的触感：每 1dp 一下清脆的“嗒”，每 10dp 和 0 点位换成更实的“咔”。 */
+    /** 拖动滑块的触感（调轻）：每 1dp 一下很轻的“嗒”，每 10dp 和 0 点位稍实一点。 */
     private void tick(int o) {
         boolean major = o % 10 == 0;
-        if (vib != null && vib.hasVibrator() && Build.VERSION.SDK_INT >= 29) {
-            vib.vibrate(VibrationEffect.createPredefined(major
-                    ? VibrationEffect.EFFECT_CLICK : VibrationEffect.EFFECT_TICK));
+        if (vib != null && vib.hasVibrator() && Build.VERSION.SDK_INT >= 26
+                && vib.hasAmplitudeControl()) {
+            vib.vibrate(VibrationEffect.createOneShot(major ? 8 : 5, major ? 50 : 22));
             return;
         }
-        slider.performHapticFeedback(major
-                ? android.view.HapticFeedbackConstants.CONTEXT_CLICK
-                : android.view.HapticFeedbackConstants.CLOCK_TICK);
+        if (major && vib != null && Build.VERSION.SDK_INT >= 29) {
+            vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
+            return;
+        }
+        slider.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
     }
 
     private int dp(int v) {
