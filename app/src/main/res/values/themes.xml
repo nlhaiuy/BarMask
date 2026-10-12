@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 不用 Material 组件库：系统自带深色主题，界面全部自绘 -->
-    <style name="Theme.Baibian" parent="android:Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowBackground">#0B0B0D</item>
-        <item name="android:statusBarColor">#0B0B0D</item>
-        <item name="android:navigationBarColor">#0B0B0D</item>
+    <!-- 不用 Material 组件库：系统自带浅色主题，界面全部自绘 -->
+    <style name="Theme.Liubai" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">#F3F6FC</item>
+        <item name="android:statusBarColor">#F3F6FC</item>
+        <item name="android:navigationBarColor">#F3F6FC</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">#4F7CFF</item>
     </style>
 </resources>

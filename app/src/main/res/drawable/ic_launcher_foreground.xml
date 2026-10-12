@@ -3,15 +3,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 左右两条白边 -->
+    <!-- 白色横屏：两侧的白就是“留白” -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M29,30h0a7,7 0 0 1 7,7v34a7,7 0 0 1 -7,7h0a7,7 0 0 1 -7,-7v-34a7,7 0 0 1 7,-7z" />
+        android:pathData="M31,32h46a9,9 0 0 1 9,9v26a9,9 0 0 1 -9,9h-46a9,9 0 0 1 -9,-9v-26a9,9 0 0 1 9,-9z" />
+    <!-- 中间的视频画面 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M79,30h0a7,7 0 0 1 7,7v34a7,7 0 0 1 -7,7h0a7,7 0 0 1 -7,-7v-34a7,7 0 0 1 7,-7z" />
+        android:fillColor="#5B84FF"
+        android:pathData="M40,32h28v44h-28z" />
     <!-- 播放键 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M48,43l16,11l-16,11z" />
+        android:pathData="M49,46l12,8l-12,8z" />
 </vector>

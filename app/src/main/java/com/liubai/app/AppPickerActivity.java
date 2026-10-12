@@ -1,4 +1,4 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.app.Activity;
 import android.content.Context;
@@ -33,7 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** 白名单：选择“在哪些软件里自动开启白边”，支持搜索，可同时选多个。 */
+/** 白名单：选择“在哪些软件里自动开启留白”，支持搜索，可同时选多个。 */
 public class AppPickerActivity extends Activity {
     private static class Item {
         String pkg;
@@ -59,14 +59,11 @@ public class AppPickerActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         density = getResources().getDisplayMetrics().density;
-        bg = Ui.INK;
-        text = Ui.PAPER;
+        bg = Ui.BG;
+        text = Ui.INK;
         sub = Ui.DIM;
-        field = Ui.PANEL;
-        getWindow().setStatusBarColor(bg);
-        getWindow().setNavigationBarColor(bg);
-        getWindow().getDecorView().setSystemUiVisibility(0);
-        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(bg));
+        field = Ui.CARD;
+        Ui.lightWindow(this);
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
@@ -99,7 +96,7 @@ public class AppPickerActivity extends Activity {
         sbg.setColor(field);
         search.setTextColor(text);
         search.setHintTextColor(sub);
-        sbg.setCornerRadius(dp(12));
+        sbg.setCornerRadius(dp(14));
         search.setBackground(sbg);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -211,7 +208,7 @@ public class AppPickerActivity extends Activity {
 
             CheckBox cb = new CheckBox(AppPickerActivity.this);
             cb.setChecked(it.checked);
-            cb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PAPER));
+            cb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRI));
             cb.setClickable(false);   // 点击整行来切换
             cb.setFocusable(false);
             row.addView(cb);

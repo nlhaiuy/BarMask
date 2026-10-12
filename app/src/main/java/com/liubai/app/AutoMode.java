@@ -1,4 +1,4 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.app.KeyguardManager;
 import android.content.ComponentName;
@@ -17,7 +17,7 @@ import java.util.Set;
 
 /**
  * 开关逻辑：
- *  - 总开关（底部大按钮）关闭 → 任何地方都不显示白边。
+ *  - 总开关（底部大按钮）关闭 → 任何地方都不显示留白。
  *  - 总开关开启 + 白名单模式开启 → 只在白名单里的软件中显示（靠无障碍服务识别前台软件）。
  *  - 总开关开启 + 白名单模式关闭 → 全局模式：横屏时始终显示。
  * 横屏才显示、竖屏自动隐藏，由 MaskService 自己负责。
@@ -79,7 +79,7 @@ public final class AutoMode {
         return prefs(c).getBoolean(KEY_MASTER, false);
     }
 
-    /** 设置总开关，并立刻按当前模式开启 / 关闭白边。 */
+    /** 设置总开关，并立刻按当前模式开启 / 关闭留白。 */
     public static void setMaster(Context c, boolean on) {
         prefs(c).edit().putBoolean(KEY_MASTER, on).apply();
         evaluate(c);
@@ -134,7 +134,7 @@ public final class AutoMode {
     /** 无障碍服务：前台窗口变化。 */
     public static void onForeground(Context c, String pkg) {
         if (pkg == null || pkg.isEmpty()) return;
-        if (pkg.equals(c.getPackageName())) return;                     // 在设置白边本身时不算
+        if (pkg.equals(c.getPackageName())) return;                     // 在设置留白本身时不算
         if (pkg.equals("com.android.systemui") || pkg.equals("android")) return; // 下拉通知栏等
         if (isIme(c, pkg)) return;                                      // 输入法
         fg = pkg;
@@ -158,7 +158,7 @@ public final class AutoMode {
                 && isScreenActive(appCtx);
     }
 
-    /** 亮屏且未锁屏：息屏、锁屏后台继续播放时，不显示白边。 */
+    /** 亮屏且未锁屏：息屏、锁屏后台继续播放时，不显示留白。 */
     private static boolean isScreenActive(Context c) {
         try {
             PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);

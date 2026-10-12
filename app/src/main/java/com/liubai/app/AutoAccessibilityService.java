@@ -1,4 +1,4 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.accessibilityservice.AccessibilityService;
 import android.content.BroadcastReceiver;
@@ -10,10 +10,10 @@ import android.view.accessibility.AccessibilityEvent;
 
 /** 只用来知道“现在前台是哪个 App”，不读取屏幕内容。 */
 public class AutoAccessibilityService extends AccessibilityService {
-    /** 引导用户开启无障碍时置为 true；一开启成功就自动跳回白边，省得手动返回好几层。 */
+    /** 引导用户开启无障碍时置为 true；一开启成功就自动跳回留白，省得手动返回好几层。 */
     public static final String KEY_RETURN = "return_after_a11y";
 
-    /** 亮屏 / 息屏 / 解锁时重新判断：息屏、锁屏后台播放时不显示白边，解锁回到视频软件后自动恢复。 */
+    /** 亮屏 / 息屏 / 解锁时重新判断：息屏、锁屏后台播放时不显示留白，解锁回到视频软件后自动恢复。 */
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {

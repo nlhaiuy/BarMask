@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.blackbarmask'
+    namespace 'com.liubai.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.baibian"
+        applicationId "com.liubai.app"
         minSdk 26
         targetSdk 34
         // 每次构建版本号递增，保证新版本总能覆盖旧版本

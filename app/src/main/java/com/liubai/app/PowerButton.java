@@ -1,4 +1,4 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
@@ -8,7 +8,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.widget.TextView;
 
-/** 总开关：关着时是一圈细线的“开启白边”，开着时翻成整块纸白色的“关闭白边”。 */
+/** 总开关：关着时是蓝色渐变的“开启遮罩”，开着时翻成白底蓝边的“关闭遮罩”。 */
 public class PowerButton extends TextView {
     private float t;            // 0 = 关，1 = 开
     private ValueAnimator anim;
@@ -17,11 +17,13 @@ public class PowerButton extends TextView {
     public PowerButton(Context c) {
         super(c);
         setGravity(Gravity.CENTER);
-        setTextSize(18);
+        setTextSize(17);
         setTypeface(Typeface.DEFAULT_BOLD);
         setLetterSpacing(0.04f);
-        bg.setCornerRadius(Ui.dp(c, 32));
+        bg.setOrientation(GradientDrawable.Orientation.TL_BR);
+        bg.setCornerRadius(Ui.dp(c, 31));
         setBackground(bg);
+        setElevation(Ui.dp(c, 6));
         setClickable(true);
         apply();
     }
@@ -29,7 +31,7 @@ public class PowerButton extends TextView {
     public void setOn(boolean on, boolean animate) {
         float to = on ? 1f : 0f;
         if (anim != null) anim.cancel();
-        setText(on ? "关闭白边" : "开启白边");
+        setText(on ? "关闭遮罩" : "开启遮罩");
         if (!animate || !isLaidOut()) { t = to; apply(); return; }
         anim = ValueAnimator.ofFloat(t, to);
         anim.setDuration(300);
@@ -38,9 +40,11 @@ public class PowerButton extends TextView {
     }
 
     private void apply() {
-        bg.setColor(Ui.blend(Ui.INK, Ui.PAPER, t));
-        bg.setStroke(Math.round(Ui.dp(getContext(), 1.5f)), Ui.blend(Ui.MUTE, Ui.PAPER, t));
-        setTextColor(Ui.blend(Ui.PAPER, Ui.INK, t));
+        int c1 = Ui.blend(Ui.PRI2, 0xFFFFFFFF, t);
+        int c2 = Ui.blend(Ui.PRI, 0xFFFFFFFF, t);
+        bg.setColors(new int[]{c1, c2});
+        bg.setStroke(Math.round(Ui.dp(getContext(), 1.5f)), Ui.blend(0x004F7CFF, Ui.PRI, t));
+        setTextColor(Ui.blend(0xFFFFFFFF, Ui.PRI, t));
     }
 
     @Override

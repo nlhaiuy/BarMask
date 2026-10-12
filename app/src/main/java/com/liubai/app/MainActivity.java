@@ -1,12 +1,14 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,9 +18,9 @@ import android.os.Vibrator;
 import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -28,7 +30,7 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 白边主页：黑色舞台，开启时屏幕两侧亮起两条纸白色的边。 */
+/** 留白主页：浅蓝白底，顶部是演示屏，下面一张白卡放全部设置，底部一个大开关。 */
 public class MainActivity extends Activity {
     private static final float[] RATIO_VALUES = {16f / 9f, 4f / 3f};
     private static final int[] STRENGTH_LAYERS = {1, 3};
@@ -37,11 +39,12 @@ public class MainActivity extends Activity {
     private float density;
     private Vibrator vib;
 
-    private View barL, barR, dot;
-    private TextView statusTv, banner, appsLink, numTv;
+    private View dot;
+    private LinearLayout banner;
+    private TextView statusTv, bannerTv, appsLink, numTv;
     private PreviewView preview;
     private PowerButton power;
-    private Ruler ruler;
+    private Slider slider;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -50,28 +53,27 @@ public class MainActivity extends Activity {
 
     private int dp(float v) { return Math.round(v * density); }
 
+    private LinearLayout.LayoutParams lp(int w, int h) {
+        return new LinearLayout.LayoutParams(w, h);
+    }
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         sp = getSharedPreferences(MaskService.PREFS, MODE_PRIVATE);
         density = getResources().getDisplayMetrics().density;
         vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-
-        getWindow().setStatusBarColor(Ui.INK);
-        getWindow().setNavigationBarColor(Ui.INK);
-        getWindow().getDecorView().setSystemUiVisibility(0);
-        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Ui.INK));
+        Ui.lightWindow(this);
 
         FrameLayout page = new FrameLayout(this);
-        page.setBackgroundColor(Ui.INK);
+        page.setBackgroundColor(Ui.BG);
 
-        // ---- 主体（两侧各留出“白边”的位置）----
         ScrollView sv = new ScrollView(this);
         sv.setFillViewport(true);
         sv.setVerticalScrollBarEnabled(false);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(32), dp(20), dp(32), dp(112));
+        col.setPadding(dp(20), dp(24), dp(20), dp(128));
         sv.addView(col, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         page.addView(sv, new FrameLayout.LayoutParams(
@@ -79,44 +81,41 @@ public class MainActivity extends Activity {
 
         buildHeader(col);
 
-        banner = new TextView(this);
-        banner.setTextSize(13);
-        banner.setTextColor(Ui.PAPER);
-        banner.setPadding(dp(16), dp(12), dp(16), dp(12));
-        banner.setBackground(Ui.round(Ui.PANEL, dp(14)));
-        banner.setOnClickListener(v -> startGuide());
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        blp.topMargin = dp(16);
-        col.addView(banner, blp);
-
         preview = new PreviewView(this);
-        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams plp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        plp.topMargin = dp(20);
+        plp.topMargin = dp(22);
         col.addView(preview, plp);
 
-        buildModeRow(col);
-        buildRatioRow(col);
-        buildStrengthRow(col);
-        buildWidthRow(col);
+        buildBanner(col);
 
-        // ---- 两条白边 ----
-        barL = new View(this);
-        barR = new View(this);
-        barL.setBackgroundColor(Ui.PAPER);
-        barR.setBackgroundColor(Ui.PAPER);
-        page.addView(barL, new FrameLayout.LayoutParams(dp(14),
-                ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
-        page.addView(barR, new FrameLayout.LayoutParams(dp(14),
-                ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END));
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(6), dp(18), dp(6));
+        card.setBackground(Ui.round(Ui.CARD, dp(24)));
+        LinearLayout.LayoutParams clp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.topMargin = dp(16);
+        col.addView(card, clp);
 
-        // ---- 总开关 ----
+        buildModeRow(card);
+        buildRatioRow(card);
+        buildStrengthRow(card);
+        buildWidthRow(card);
+
+        // 底部渐隐，让大开关浮在内容上面
+        View fade = new View(this);
+        fade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x00F3F6FC, Ui.BG}));
+        page.addView(fade, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(130), Gravity.BOTTOM));
+
+        // 总开关
         power = new PowerButton(this);
         power.setOnClickListener(v -> toggle());
         FrameLayout.LayoutParams pwl = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(64), Gravity.BOTTOM);
-        pwl.setMargins(dp(32), 0, dp(32), dp(24));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(62), Gravity.BOTTOM);
+        pwl.setMargins(dp(20), 0, dp(20), dp(22));
         page.addView(power, pwl);
 
         setContentView(page);
@@ -135,41 +134,68 @@ public class MainActivity extends Activity {
     private void buildHeader(LinearLayout col) {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.BOTTOM);
+        head.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("白边");
-        title.setTextSize(38);
-        title.setTextColor(Ui.PAPER);
+        title.setText("留白");
+        title.setTextSize(34);
+        title.setTextColor(Ui.INK);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setLetterSpacing(0.06f);
+        title.setLetterSpacing(0.04f);
         title.setIncludeFontPadding(false);
-        head.addView(title, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        head.addView(title, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ((LinearLayout.LayoutParams) title.getLayoutParams()).weight = 1f;
 
-        LinearLayout st = new LinearLayout(this);
-        st.setOrientation(LinearLayout.HORIZONTAL);
-        st.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.HORIZONTAL);
+        chip.setGravity(Gravity.CENTER_VERTICAL);
+        chip.setPadding(dp(12), dp(7), dp(12), dp(7));
+        chip.setBackground(Ui.round(Ui.CARD, dp(20)));
+        chip.setElevation(dp(2));
         dot = new View(this);
-        st.addView(dot, new LinearLayout.LayoutParams(dp(9), dp(9)));
+        chip.addView(dot, lp(dp(10), dp(10)));
         statusTv = new TextView(this);
         statusTv.setTextSize(13);
-        statusTv.setPadding(dp(8), 0, 0, 0);
-        st.addView(statusTv);
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        slp.bottomMargin = dp(5);
-        head.addView(st, slp);
+        statusTv.setPadding(dp(7), 0, 0, 0);
+        chip.addView(statusTv);
+        head.addView(chip, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        col.addView(head, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        col.addView(head, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
-    private TextView label(String text) {
+    /** 有没完成的权限时，显示一条可点的提示条；都齐了就整条隐藏。 */
+    private void buildBanner(LinearLayout col) {
+        banner = new LinearLayout(this);
+        banner.setOrientation(LinearLayout.HORIZONTAL);
+        banner.setGravity(Gravity.CENTER_VERTICAL);
+        banner.setPadding(dp(16), dp(13), dp(16), dp(13));
+        banner.setBackground(Ui.round(Ui.WARN_BG, dp(16)));
+        banner.setOnClickListener(v -> startGuide());
+
+        bannerTv = new TextView(this);
+        bannerTv.setTextSize(13);
+        bannerTv.setTextColor(Ui.WARN_TX);
+        banner.addView(bannerTv, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ((LinearLayout.LayoutParams) bannerTv.getLayoutParams()).weight = 1f;
+
+        TextView go = new TextView(this);
+        go.setText("去设置 ›");
+        go.setTextSize(13);
+        go.setTextColor(Ui.WARN_TX);
+        banner.addView(go);
+
+        LinearLayout.LayoutParams blp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.topMargin = dp(16);
+        col.addView(banner, blp);
+    }
+
+    private TextView link(String text) {
         TextView t = new TextView(this);
         t.setText(text);
         t.setTextSize(13);
         t.setTextColor(Ui.DIM);
+        t.setPadding(dp(12), dp(4), 0, dp(4));
         return t;
     }
 
@@ -177,38 +203,43 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(label(text), new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(14);
+        t.setTextColor(Ui.INK);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(t, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ((LinearLayout.LayoutParams) t.getLayoutParams()).weight = 1f;
         if (right != null) row.addView(right);
         return row;
     }
 
-    /** 每个设置项：上方一条细线，小标题，下面是控件。 */
-    private LinearLayout section(LinearLayout col, boolean first) {
+    /** 卡片里的一行设置：除第一行外，上方有一条细线。 */
+    private LinearLayout section(LinearLayout card, boolean first) {
+        if (!first) {
+            View v = new View(this);
+            v.setBackgroundColor(Ui.LINE);
+            card.addView(v, lp(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
+        }
         LinearLayout s = new LinearLayout(this);
         s.setOrientation(LinearLayout.VERTICAL);
-        s.setPadding(0, dp(first ? 18 : 16), 0, dp(16));
-        col.addView(s, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        s.setPadding(0, dp(16), 0, dp(16));
+        card.addView(s, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return s;
     }
 
-    private void rule(LinearLayout col) {
-        View v = new View(this);
-        v.setBackgroundColor(Ui.LINE);
-        col.addView(v, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
+    private LinearLayout.LayoutParams below() {
+        LinearLayout.LayoutParams p = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.topMargin = dp(12);
+        return p;
     }
 
-    private void buildModeRow(LinearLayout col) {
-        rule(col);
-        LinearLayout s = section(col, true);
-        appsLink = new TextView(this);
-        appsLink.setTextSize(13);
-        appsLink.setTextColor(Ui.PAPER);
-        appsLink.setPadding(dp(12), dp(6), 0, dp(6));
+    private void buildModeRow(LinearLayout card) {
+        LinearLayout s = section(card, true);
+        appsLink = link("");
         appsLink.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
-        s.addView(labelRow("模式", appsLink));
+        s.addView(labelRow("生效范围", appsLink));
 
         Segmented seg = new Segmented(this, new String[]{"白名单", "全局"},
                 AutoMode.isEnabled(this) ? 0 : 1);
@@ -220,34 +251,26 @@ public class MainActivity extends Activity {
             // 白名单模式要靠无障碍识别前台软件
             if (whitelist && AutoMode.isMaster(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
         });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(10);
-        s.addView(seg, lp);
+        s.addView(seg, below());
     }
 
-    private void buildRatioRow(LinearLayout col) {
-        rule(col);
-        LinearLayout s = section(col, false);
+    private void buildRatioRow(LinearLayout card) {
+        LinearLayout s = section(card, false);
         s.addView(labelRow("视频比例", null));
 
         float cur = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
         int sel = Math.abs(RATIO_VALUES[1] - cur) < 0.001f ? 1 : 0;
         if (sel == 0) sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[0]).apply();
-        Tiles tiles = new Tiles(this, new String[]{"16:9", "4:3"}, RATIO_VALUES, sel);
-        tiles.setOnSelect(i -> {
+        Segmented seg = new Segmented(this, new String[]{"16:9", "4:3"}, sel, RATIO_VALUES);
+        seg.setOnSelect(i -> {
             sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[i]).apply();
             changed();
         });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(10);
-        s.addView(tiles, lp);
+        s.addView(seg, below());
     }
 
-    private void buildStrengthRow(LinearLayout col) {
-        rule(col);
-        LinearLayout s = section(col, false);
+    private void buildStrengthRow(LinearLayout card) {
+        LinearLayout s = section(card, false);
         s.addView(labelRow("遮盖强度", null));
 
         int curLayers = sp.getInt(MaskService.KEY_LAYERS, MaskService.DEFAULT_LAYERS);
@@ -256,64 +279,78 @@ public class MainActivity extends Activity {
             sp.edit().putInt(MaskService.KEY_LAYERS, STRENGTH_LAYERS[i]).apply();
             changed();
         });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(10);
-        s.addView(seg, lp);
+        s.addView(seg, below());
     }
 
-    private void buildWidthRow(LinearLayout col) {
-        rule(col);
-        LinearLayout s = section(col, false);
+    private TextView stepButton(String text, int delta) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(22);
+        t.setTextColor(Ui.INK);
+        t.setGravity(Gravity.CENTER);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(Ui.CHIP);
+        t.setBackground(g);
+        t.setClickable(true);
+        t.setOnClickListener(v -> setOffset(slider.getValue() + delta));
+        return t;
+    }
 
-        TextView reset = new TextView(this);
-        reset.setText("归零");
-        reset.setTextSize(13);
-        reset.setTextColor(Ui.PAPER);
-        reset.setPadding(dp(12), dp(6), 0, dp(6));
+    private void buildWidthRow(LinearLayout card) {
+        LinearLayout s = section(card, false);
+
+        TextView reset = link("归零");
+        reset.setOnClickListener(v -> setOffset(0));
         s.addView(labelRow("宽度微调", reset));
 
-        // 大号数字：点一下可以用键盘输入
+        slider = new Slider(this);
+
+        LinearLayout fine = new LinearLayout(this);
+        fine.setOrientation(LinearLayout.HORIZONTAL);
+        fine.setGravity(Gravity.CENTER_VERTICAL);
+        fine.addView(stepButton("−", -1), lp(dp(44), dp(44)));
+
+        // 中间的大号数字：点一下可以用键盘输入
         LinearLayout num = new LinearLayout(this);
         num.setOrientation(LinearLayout.HORIZONTAL);
         num.setGravity(Gravity.CENTER);
         numTv = new TextView(this);
-        numTv.setTextSize(52);
-        numTv.setTextColor(Ui.PAPER);
+        numTv.setTextSize(40);
+        numTv.setTextColor(Ui.INK);
         numTv.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         numTv.setIncludeFontPadding(false);
         num.addView(numTv);
         TextView unit = new TextView(this);
         unit.setText("dp");
-        unit.setTextSize(14);
+        unit.setTextSize(13);
         unit.setTextColor(Ui.DIM);
-        unit.setPadding(dp(6), 0, 0, dp(8));
-        LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(
+        unit.setPadding(dp(4), 0, 0, dp(6));
+        LinearLayout.LayoutParams ulp = lp(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         ulp.gravity = Gravity.BOTTOM;
         num.addView(unit, ulp);
         num.setOnClickListener(v -> askOffset());
-        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        nlp.topMargin = dp(4);
-        s.addView(num, nlp);
+        LinearLayout.LayoutParams nlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.weight = 1f;
+        fine.addView(num, nlp);
 
-        ruler = new Ruler(this);
-        int off = Math.max(Ruler.MIN, Math.min(Ruler.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
-        ruler.setValue(off);
+        fine.addView(stepButton("+", 1), lp(dp(44), dp(44)));
+        s.addView(fine, below());
+
+        int off = Math.max(Slider.MIN, Math.min(Slider.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
+        slider.setValue(off);
         showOffset(off);
-        ruler.setOnChange((v, user) -> {
+        slider.setOnChange((v, user) -> {
             sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
             showOffset(v);
             if (user) tick(v);
             changed();
         });
-        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams slp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rlp.topMargin = dp(6);
-        s.addView(ruler, rlp);
-
-        reset.setOnClickListener(v -> setOffset(0));
+        slp.topMargin = dp(8);
+        s.addView(slider, slp);
     }
 
     private void showOffset(int v) {
@@ -321,9 +358,9 @@ public class MainActivity extends Activity {
     }
 
     private void setOffset(int v) {
-        v = Math.max(Ruler.MIN, Math.min(Ruler.MAX, v));
+        v = Math.max(Slider.MIN, Math.min(Slider.MAX, v));
         sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
-        ruler.setValue(v);
+        slider.setValue(v);
         showOffset(v);
         tick(v);
         changed();
@@ -334,7 +371,7 @@ public class MainActivity extends Activity {
         final EditText in = new EditText(this);
         in.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
         in.setSingleLine(true);
-        in.setText(String.valueOf(ruler.getValue()));
+        in.setText(String.valueOf(slider.getValue()));
         in.setSelectAllOnFocus(true);
         in.setGravity(Gravity.CENTER);
         in.setTextSize(24);
@@ -384,41 +421,29 @@ public class MainActivity extends Activity {
 
     // ---------------- 状态刷新 ----------------
 
-    /** 开 → 两侧白边滑入、按钮翻白；关 → 滑出。 */
+    /** 开 → 演示屏两侧变白、按钮翻白；关 → 变回黑边。 */
     private void updateUi(boolean animate) {
         boolean on = AutoMode.isMaster(this);
         power.setOn(on, animate);
         preview.setOn(on);
         statusTv.setText(on ? "已开启" : "已关闭");
-        statusTv.setTextColor(on ? Ui.PAPER : Ui.DIM);
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        statusTv.setTextColor(on ? Ui.INK : Ui.DIM);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
         if (on) {
-            g.setColor(Ui.PAPER);
+            g.setColor(Ui.GREEN);
+            g.setStroke(dp(2), 0x552EB67D);
         } else {
-            g.setColor(Color.TRANSPARENT);
-            g.setStroke(Math.max(1, dp(1.5f)), Ui.MUTE);
+            g.setColor(0xFFC9C7C0);
         }
         dot.setBackground(g);
-
-        float hide = dp(14);
-        float toL = on ? 0f : -hide, toR = on ? 0f : hide;
-        if (animate) {
-            barL.animate().translationX(toL).setDuration(380)
-                    .setInterpolator(new DecelerateInterpolator(1.8f)).start();
-            barR.animate().translationX(toR).setDuration(380)
-                    .setInterpolator(new DecelerateInterpolator(1.8f)).start();
-        } else {
-            barL.setTranslationX(toL);
-            barR.setTranslationX(toR);
-        }
         refreshPerms();
     }
 
     /** 白名单入口：只在白名单模式显示，位置不变所以界面不跳动。 */
     private void refreshAuto() {
         boolean whitelist = AutoMode.isEnabled(this);
-        appsLink.setText("白名单应用 " + installedSelectedCount() + "  ›");
+        appsLink.setText("白名单应用 " + installedSelectedCount() + " ›");
         appsLink.setEnabled(whitelist);
         appsLink.setClickable(whitelist);
         appsLink.animate().cancel();
@@ -435,7 +460,6 @@ public class MainActivity extends Activity {
         return n;
     }
 
-    /** 有没完成的权限时，显示一条可点的提示条；都齐了就整条隐藏。 */
     private void refreshPerms() {
         if (banner == null) return;
         List<String> lack = new ArrayList<>();
@@ -446,7 +470,7 @@ public class MainActivity extends Activity {
             banner.setVisibility(View.GONE);
         } else {
             banner.setVisibility(View.VISIBLE);
-            banner.setText("还需授权：" + String.join("、", lack) + "  ›");
+            bannerTv.setText("还需授权：" + String.join("、", lack));
         }
     }
 
@@ -468,7 +492,7 @@ public class MainActivity extends Activity {
         if (AutoMode.isEnabled(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
     }
 
-    /** 设置有变化：让正在显示的白边立刻刷新。 */
+    /** 设置有变化：让正在显示的遮罩立刻刷新。 */
     private void changed() {
         preview.invalidate();
         if (MaskService.running) {
@@ -477,19 +501,26 @@ public class MainActivity extends Activity {
         AutoMode.evaluate(this);
     }
 
-    /** 拖动卷尺的触感（很轻）：每 1dp 一下，每 10dp 和 0 稍实一点。 */
+    /**
+     * 拖动微调时的触感：每 1dp 一下很轻的短震，每 10dp 稍实一点，
+     * 到 0 或者 ±100 时最明显，让人不用看也知道到了。
+     */
     private void tick(int o) {
+        boolean edge = o == 0 || Math.abs(o) == Slider.MAX;
         boolean major = o % 10 == 0;
-        if (vib != null && vib.hasVibrator() && Build.VERSION.SDK_INT >= 26
-                && vib.hasAmplitudeControl()) {
-            vib.vibrate(VibrationEffect.createOneShot(major ? 8 : 5, major ? 50 : 22));
-            return;
+        if (vib != null && vib.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= 26 && vib.hasAmplitudeControl()) {
+                vib.vibrate(VibrationEffect.createOneShot(
+                        edge ? 16 : major ? 9 : 5, edge ? 110 : major ? 60 : 24));
+                return;
+            }
+            if (Build.VERSION.SDK_INT >= 29 && (edge || major)) {
+                vib.vibrate(VibrationEffect.createPredefined(
+                        edge ? VibrationEffect.EFFECT_CLICK : VibrationEffect.EFFECT_TICK));
+                return;
+            }
         }
-        if (major && vib != null && Build.VERSION.SDK_INT >= 29) {
-            vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
-            return;
-        }
-        ruler.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+        slider.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
     }
 
     // ---------------- 权限（一键设置） ----------------
@@ -547,9 +578,9 @@ public class MainActivity extends Activity {
                     }
                     break;
                 default:
-                    // 开启成功后，白边会自己跳回前台，不用手动返回
+                    // 开启成功后，留白会自己跳回前台，不用手动返回
                     sp.edit().putBoolean(AutoAccessibilityService.KEY_RETURN, true).apply();
-                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                    openAccessibility();
             }
         } catch (Exception e) {
             // 实在打不开专用页面，就去应用信息页，让用户手动设置
@@ -558,13 +589,35 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * 无障碍直达：Android 14+ 直接打开“留白”自己的无障碍详情页，
+     * 更低版本打开无障碍列表并把“留白”那一项高亮出来。
+     */
+    private void openAccessibility() {
+        String flat = new ComponentName(this, AutoAccessibilityService.class).flattenToString();
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {
+                Intent direct = new Intent(Settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS);
+                direct.putExtra(Intent.EXTRA_COMPONENT_NAME, flat);
+                startActivity(direct);
+                return;
+            } catch (Exception ignored) { /* 个别系统没有这个页面，退回列表 */ }
+        }
+        Intent list = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        Bundle args = new Bundle();
+        args.putString(":settings:fragment_args_key", flat);
+        list.putExtra(":settings:fragment_args_key", flat);
+        list.putExtra(":settings:show_fragment_args", args);
+        startActivity(list);
+    }
+
     /** 无障碍没开成功：最常见的原因是系统对“非商店安装”的软件置灰了该选项。 */
     private void showRestrictedHelp() {
         new AlertDialog.Builder(this)
                 .setTitle("无障碍选项是灰色的")
                 .setMessage("1. 打开应用信息页\n"
                         + "2. 右上角 ⋮ → 允许受限制的设置\n"
-                        + "3. 回到白边，再点一次设置")
+                        + "3. 回到留白，再点一次设置")
                 .setPositiveButton("应用信息", (d, w) -> startActivity(new Intent(
                         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:" + getPackageName()))))

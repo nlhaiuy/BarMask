@@ -7,8 +7,8 @@
         android:shortcutShortLabel="@string/shortcut_short"
         android:shortcutLongLabel="@string/shortcut_long">
         <intent
-            android:action="com.example.blackbarmask.TOGGLE"
-            android:targetPackage="com.example.baibian"
-            android:targetClass="com.example.blackbarmask.ToggleActivity" />
+            android:action="com.liubai.app.TOGGLE"
+            android:targetPackage="com.liubai.app"
+            android:targetClass="com.liubai.app.ToggleActivity" />
     </shortcut>
 </shortcuts>

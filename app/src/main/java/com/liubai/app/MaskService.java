@@ -1,4 +1,4 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -45,9 +45,9 @@ public class MaskService extends Service {
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(
-                CHANNEL_ID, "白边", NotificationManager.IMPORTANCE_LOW));
+                CHANNEL_ID, "留白", NotificationManager.IMPORTANCE_LOW));
         Notification n = new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("白边已开启")
+                .setContentTitle("留白已开启")
                 .setSmallIcon(R.drawable.ic_tile)
                 .setOngoing(true)
                 .build();

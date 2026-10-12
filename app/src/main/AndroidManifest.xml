@@ -20,7 +20,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
-        android:theme="@style/Theme.Baibian">
+        android:theme="@style/Theme.Liubai">
 
         <activity
             android:name=".MainActivity"
@@ -42,7 +42,7 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
-                <action android:name="com.example.blackbarmask.TOGGLE" />
+                <action android:name="com.liubai.app.TOGGLE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

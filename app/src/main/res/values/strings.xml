@@ -1,7 +1,7 @@
 <resources>
-    <string name="app_name">白边</string>
-    <string name="tile_label">白边</string>
-    <string name="shortcut_short">开关白边</string>
-    <string name="shortcut_long">开关白边</string>
-    <string name="accessibility_desc">仅用于识别当前打开的应用，在白名单应用中自动开启白边，不读取屏幕内容。</string>
+    <string name="app_name">留白</string>
+    <string name="tile_label">留白</string>
+    <string name="shortcut_short">开关留白</string>
+    <string name="shortcut_long">开关留白</string>
+    <string name="accessibility_desc">仅用于识别当前打开的应用，在白名单应用中自动开启留白，不读取屏幕内容。</string>
 </resources>

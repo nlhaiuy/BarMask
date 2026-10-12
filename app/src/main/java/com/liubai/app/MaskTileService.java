@@ -1,4 +1,4 @@
-package com.example.blackbarmask;
+package com.liubai.app;
 
 import android.app.PendingIntent;
 import android.content.Intent;
