@@ -68,24 +68,37 @@ public class MainActivity extends Activity {
         FrameLayout page = new FrameLayout(this);
         page.setBackgroundColor(Ui.BG);
 
-        ScrollView sv = new ScrollView(this);
-        sv.setFillViewport(true);
-        sv.setVerticalScrollBarEnabled(false);
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(20), dp(24), dp(20), dp(128));
-        sv.addView(col, new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        page.addView(sv, new FrameLayout.LayoutParams(
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        page.addView(root, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        buildHeader(col);
+        // 标题和演示屏固定在顶部：拖动下面的设置时，始终看得到遮罩的变化
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.VERTICAL);
+        top.setPadding(dp(20), dp(24), dp(20), dp(4));
+        root.addView(top, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        buildHeader(top);
 
         preview = new PreviewView(this);
         LinearLayout.LayoutParams plp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         plp.topMargin = dp(22);
-        col.addView(preview, plp);
+        top.addView(preview, plp);
+
+        // 设置项在下面单独滚动
+        ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(20), dp(0), dp(20), dp(128));
+        sv.addView(col, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams svp = lp(ViewGroup.LayoutParams.MATCH_PARENT, 0);
+        svp.weight = 1f;
+        root.addView(sv, svp);
 
         buildBanner(col);
 
