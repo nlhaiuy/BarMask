@@ -351,7 +351,8 @@
                             android:valueFrom="-100"
                             android:valueTo="100"
                             app:labelBehavior="floating"
-                            app:tickVisible="false" />
+                            app:tickVisible="false"
+                            app:trackStopIndicatorSize="0dp" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

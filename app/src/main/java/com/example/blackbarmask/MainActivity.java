@@ -184,13 +184,6 @@ public class MainActivity extends AppCompatActivity {
         slider.addOnChangeListener((s, value, fromUser) -> {
             if (!fromUser || offsetBusy) return;
             int o = (int) value;
-            // 阻尼：0 附近有“吸附”，拖到 ±3 以内会被吸到 0
-            if (o != 0 && Math.abs(o) <= 3) {
-                o = 0;
-                offsetBusy = true;
-                slider.setValue(0);
-                offsetBusy = false;
-            }
             if (o == lastTick) return;
             lastTick = o;
             tick(o);
