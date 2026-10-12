@@ -50,7 +50,6 @@ public class AppPickerActivity extends Activity {
     private EditText search;
     private TextView countTv;
     private float density;
-    private boolean night;
     private int bg, text, sub, field;
 
     private int dp(int v) {
@@ -59,22 +58,15 @@ public class AppPickerActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle b) {
-        com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this);
-        super.onCreate(b);
         density = getResources().getDisplayMetrics().density;
-        night = (getResources().getConfiguration().uiMode
-                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        bg = com.google.android.material.color.MaterialColors.getColor(this,
-                com.google.android.material.R.attr.colorSurface, night ? 0xFF121218 : 0xFFFFFFFF);
-        text = com.google.android.material.color.MaterialColors.getColor(this,
-                com.google.android.material.R.attr.colorOnSurface, night ? 0xFFE5E1E9 : 0xFF1B1B21);
-        sub = com.google.android.material.color.MaterialColors.getColor(this,
-                com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF777777);
-        field = com.google.android.material.color.MaterialColors.getColor(this,
-                com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFFEEEEEE);
-        getWindow().getDecorView().setSystemUiVisibility(night ? 0
-                : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        bg = Ui.INK;
+        text = Ui.PAPER;
+        sub = Ui.DIM;
+        field = Ui.PANEL;
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(bg);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(bg));
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
@@ -87,7 +79,7 @@ public class AppPickerActivity extends Activity {
         head.setPadding(dp(20), dp(16), dp(20), dp(8));
         TextView title = new TextView(this);
         title.setText("白名单");
-        title.setTextSize(20);
+        title.setTextSize(30);
         title.setTextColor(text);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         head.addView(title);
@@ -219,6 +211,7 @@ public class AppPickerActivity extends Activity {
 
             CheckBox cb = new CheckBox(AppPickerActivity.this);
             cb.setChecked(it.checked);
+            cb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PAPER));
             cb.setClickable(false);   // 点击整行来切换
             cb.setFocusable(false);
             row.addView(cb);

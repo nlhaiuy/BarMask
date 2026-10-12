@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Material 3；Android 12+ 且系统支持时再叠加动态取色 -->
-    <style name="Theme.Baibian" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#4F46E5</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#E0E7FF</item>
-        <item name="colorOnPrimaryContainer">#1E1B6B</item>
-        <item name="android:statusBarColor">?attr/colorSurface</item>
-        <item name="android:navigationBarColor">?attr/colorSurface</item>
+    <!-- 不用 Material 组件库：系统自带深色主题，界面全部自绘 -->
+    <style name="Theme.Baibian" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#0B0B0D</item>
+        <item name="android:statusBarColor">#0B0B0D</item>
+        <item name="android:navigationBarColor">#0B0B0D</item>
     </style>
 </resources>

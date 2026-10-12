@@ -1,13 +1,12 @@
 package com.example.blackbarmask;
 
-import android.animation.ValueAnimator;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
-import android.content.res.Configuration;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,79 +14,113 @@ import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
-import android.text.Editable;
-import android.text.TextWatcher;
+import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
-import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
-
-import androidx.appcompat.app.AppCompatActivity;
-
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.button.MaterialButtonToggleGroup;
-import com.google.android.material.color.DynamicColors;
-import com.google.android.material.color.MaterialColors;
-import com.google.android.material.slider.Slider;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+/** 白边主页：黑色舞台，开启时屏幕两侧亮起两条纸白色的边。 */
+public class MainActivity extends Activity {
     private static final float[] RATIO_VALUES = {16f / 9f, 4f / 3f};
     private static final int[] STRENGTH_LAYERS = {1, 3};
 
     private SharedPreferences sp;
     private float density;
-    private MaterialButton btn, banner;
-    private MaterialButton appsRow;
-    private PreviewView preview;
-    private TickSlider slider;
-    private EditText offsetInput;
-    private boolean offsetBusy = false;
-    private int lastTick = Integer.MIN_VALUE;
     private Vibrator vib;
+
+    private View barL, barR, dot;
+    private TextView statusTv, banner, appsLink, numTv;
+    private PreviewView preview;
+    private PowerButton power;
+    private Ruler ruler;
 
     // 权限引导
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
     private boolean guiding = false, awaitingReturn = false;
     private int step = -1;
 
-    private int color(int attr) {
-        return MaterialColors.getColor(this, attr, 0);
-    }
+    private int dp(float v) { return Math.round(v * density); }
 
     @Override
     protected void onCreate(Bundle b) {
-        DynamicColors.applyToActivityIfAvailable(this);
         super.onCreate(b);
-        setContentView(R.layout.activity_main);
         sp = getSharedPreferences(MaskService.PREFS, MODE_PRIVATE);
         density = getResources().getDisplayMetrics().density;
-
-        boolean night = (getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        getWindow().getDecorView().setSystemUiVisibility(night ? 0
-                : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-
         vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-        btn = findViewById(R.id.btn);
-        banner = findViewById(R.id.banner);
-        preview = findViewById(R.id.preview);
-        appsRow = findViewById(R.id.apps_row);
-        slider = findViewById(R.id.slider);
-        offsetInput = findViewById(R.id.offset_input);
 
-        btn.setOnClickListener(v -> toggle());
+        getWindow().setStatusBarColor(Ui.INK);
+        getWindow().setNavigationBarColor(Ui.INK);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Ui.INK));
+
+        FrameLayout page = new FrameLayout(this);
+        page.setBackgroundColor(Ui.INK);
+
+        // ---- 主体（两侧各留出“白边”的位置）----
+        ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(32), dp(20), dp(32), dp(112));
+        sv.addView(col, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        page.addView(sv, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        buildHeader(col);
+
+        banner = new TextView(this);
+        banner.setTextSize(13);
+        banner.setTextColor(Ui.PAPER);
+        banner.setPadding(dp(16), dp(12), dp(16), dp(12));
+        banner.setBackground(Ui.round(Ui.PANEL, dp(14)));
         banner.setOnClickListener(v -> startGuide());
-        appsRow.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.topMargin = dp(16);
+        col.addView(banner, blp);
 
-        setupMode();
-        setupDisplay();
-        setupOffset();
+        preview = new PreviewView(this);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        plp.topMargin = dp(20);
+        col.addView(preview, plp);
 
-        updateUi();
+        buildModeRow(col);
+        buildRatioRow(col);
+        buildStrengthRow(col);
+        buildWidthRow(col);
+
+        // ---- 两条白边 ----
+        barL = new View(this);
+        barR = new View(this);
+        barL.setBackgroundColor(Ui.PAPER);
+        barR.setBackgroundColor(Ui.PAPER);
+        page.addView(barL, new FrameLayout.LayoutParams(dp(14),
+                ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
+        page.addView(barR, new FrameLayout.LayoutParams(dp(14),
+                ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END));
+
+        // ---- 总开关 ----
+        power = new PowerButton(this);
+        power.setOnClickListener(v -> toggle());
+        FrameLayout.LayoutParams pwl = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(64), Gravity.BOTTOM);
+        pwl.setMargins(dp(32), 0, dp(32), dp(24));
+        page.addView(power, pwl);
+
+        setContentView(page);
+        updateUi(false);
         refreshAuto();
 
         // 第一次打开：自动带你把需要的权限一次设置完
@@ -96,6 +129,234 @@ public class MainActivity extends AppCompatActivity {
             if (anyMissing()) startGuide();
         }
     }
+
+    // ---------------- 页面结构 ----------------
+
+    private void buildHeader(LinearLayout col) {
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.BOTTOM);
+
+        TextView title = new TextView(this);
+        title.setText("白边");
+        title.setTextSize(38);
+        title.setTextColor(Ui.PAPER);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setLetterSpacing(0.06f);
+        title.setIncludeFontPadding(false);
+        head.addView(title, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout st = new LinearLayout(this);
+        st.setOrientation(LinearLayout.HORIZONTAL);
+        st.setGravity(Gravity.CENTER_VERTICAL);
+        dot = new View(this);
+        st.addView(dot, new LinearLayout.LayoutParams(dp(9), dp(9)));
+        statusTv = new TextView(this);
+        statusTv.setTextSize(13);
+        statusTv.setPadding(dp(8), 0, 0, 0);
+        st.addView(statusTv);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.bottomMargin = dp(5);
+        head.addView(st, slp);
+
+        col.addView(head, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    private TextView label(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(13);
+        t.setTextColor(Ui.DIM);
+        return t;
+    }
+
+    private LinearLayout labelRow(String text, TextView right) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(label(text), new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (right != null) row.addView(right);
+        return row;
+    }
+
+    /** 每个设置项：上方一条细线，小标题，下面是控件。 */
+    private LinearLayout section(LinearLayout col, boolean first) {
+        LinearLayout s = new LinearLayout(this);
+        s.setOrientation(LinearLayout.VERTICAL);
+        s.setPadding(0, dp(first ? 18 : 16), 0, dp(16));
+        col.addView(s, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return s;
+    }
+
+    private void rule(LinearLayout col) {
+        View v = new View(this);
+        v.setBackgroundColor(Ui.LINE);
+        col.addView(v, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
+    }
+
+    private void buildModeRow(LinearLayout col) {
+        rule(col);
+        LinearLayout s = section(col, true);
+        appsLink = new TextView(this);
+        appsLink.setTextSize(13);
+        appsLink.setTextColor(Ui.PAPER);
+        appsLink.setPadding(dp(12), dp(6), 0, dp(6));
+        appsLink.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
+        s.addView(labelRow("模式", appsLink));
+
+        Segmented seg = new Segmented(this, new String[]{"白名单", "全局"},
+                AutoMode.isEnabled(this) ? 0 : 1);
+        seg.setOnSelect(i -> {
+            boolean whitelist = i == 0;
+            sp.edit().putBoolean(AutoMode.KEY_AUTO, whitelist).apply();
+            AutoMode.evaluate(this);   // 切换后立刻按新模式显示 / 隐藏
+            refreshAuto();
+            // 白名单模式要靠无障碍识别前台软件
+            if (whitelist && AutoMode.isMaster(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        s.addView(seg, lp);
+    }
+
+    private void buildRatioRow(LinearLayout col) {
+        rule(col);
+        LinearLayout s = section(col, false);
+        s.addView(labelRow("视频比例", null));
+
+        float cur = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
+        int sel = Math.abs(RATIO_VALUES[1] - cur) < 0.001f ? 1 : 0;
+        if (sel == 0) sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[0]).apply();
+        Tiles tiles = new Tiles(this, new String[]{"16:9", "4:3"}, RATIO_VALUES, sel);
+        tiles.setOnSelect(i -> {
+            sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[i]).apply();
+            changed();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        s.addView(tiles, lp);
+    }
+
+    private void buildStrengthRow(LinearLayout col) {
+        rule(col);
+        LinearLayout s = section(col, false);
+        s.addView(labelRow("遮盖强度", null));
+
+        int curLayers = sp.getInt(MaskService.KEY_LAYERS, MaskService.DEFAULT_LAYERS);
+        Segmented seg = new Segmented(this, new String[]{"标准", "加强"}, curLayers >= 2 ? 1 : 0);
+        seg.setOnSelect(i -> {
+            sp.edit().putInt(MaskService.KEY_LAYERS, STRENGTH_LAYERS[i]).apply();
+            changed();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        s.addView(seg, lp);
+    }
+
+    private void buildWidthRow(LinearLayout col) {
+        rule(col);
+        LinearLayout s = section(col, false);
+
+        TextView reset = new TextView(this);
+        reset.setText("归零");
+        reset.setTextSize(13);
+        reset.setTextColor(Ui.PAPER);
+        reset.setPadding(dp(12), dp(6), 0, dp(6));
+        s.addView(labelRow("宽度微调", reset));
+
+        // 大号数字：点一下可以用键盘输入
+        LinearLayout num = new LinearLayout(this);
+        num.setOrientation(LinearLayout.HORIZONTAL);
+        num.setGravity(Gravity.CENTER);
+        numTv = new TextView(this);
+        numTv.setTextSize(52);
+        numTv.setTextColor(Ui.PAPER);
+        numTv.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        numTv.setIncludeFontPadding(false);
+        num.addView(numTv);
+        TextView unit = new TextView(this);
+        unit.setText("dp");
+        unit.setTextSize(14);
+        unit.setTextColor(Ui.DIM);
+        unit.setPadding(dp(6), 0, 0, dp(8));
+        LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ulp.gravity = Gravity.BOTTOM;
+        num.addView(unit, ulp);
+        num.setOnClickListener(v -> askOffset());
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.topMargin = dp(4);
+        s.addView(num, nlp);
+
+        ruler = new Ruler(this);
+        int off = Math.max(Ruler.MIN, Math.min(Ruler.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
+        ruler.setValue(off);
+        showOffset(off);
+        ruler.setOnChange((v, user) -> {
+            sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
+            showOffset(v);
+            if (user) tick(v);
+            changed();
+        });
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(6);
+        s.addView(ruler, rlp);
+
+        reset.setOnClickListener(v -> setOffset(0));
+    }
+
+    private void showOffset(int v) {
+        numTv.setText((v > 0 ? "+" : "") + v);
+    }
+
+    private void setOffset(int v) {
+        v = Math.max(Ruler.MIN, Math.min(Ruler.MAX, v));
+        sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
+        ruler.setValue(v);
+        showOffset(v);
+        tick(v);
+        changed();
+    }
+
+    /** 点大号数字，用键盘直接输入。 */
+    private void askOffset() {
+        final EditText in = new EditText(this);
+        in.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        in.setSingleLine(true);
+        in.setText(String.valueOf(ruler.getValue()));
+        in.setSelectAllOnFocus(true);
+        in.setGravity(Gravity.CENTER);
+        in.setTextSize(24);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(24), dp(8), dp(24), 0);
+        box.addView(in);
+        AlertDialog d = new AlertDialog.Builder(this)
+                .setTitle("宽度微调（-100 ~ 100 dp）")
+                .setView(box)
+                .setPositiveButton("确定", (dlg, w) -> {
+                    try {
+                        setOffset(Integer.parseInt(in.getText().toString().trim()));
+                    } catch (NumberFormatException ignored) { }
+                })
+                .setNegativeButton("取消", null)
+                .create();
+        d.getWindow().setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        d.show();
+    }
+
+    // ---------------- 生命周期 ----------------
 
     @Override
     protected void onPause() {
@@ -117,145 +378,52 @@ public class MainActivity extends AppCompatActivity {
                 advance();
             }
         }
-        updateUi();
+        updateUi(false);
         refreshAuto();
-    }
-
-    // ---------------- 设置项 ----------------
-
-    private void setupMode() {
-        MaterialButtonToggleGroup g = findViewById(R.id.mode_group);
-        g.check(AutoMode.isEnabled(this) ? R.id.mode_whitelist : R.id.mode_global);
-        g.addOnButtonCheckedListener((grp, id, checked) -> {
-            if (!checked) return;
-            boolean whitelist = id == R.id.mode_whitelist;
-            sp.edit().putBoolean(AutoMode.KEY_AUTO, whitelist).apply();
-            AutoMode.evaluate(this);   // 切换后立刻按新模式显示 / 隐藏
-            refreshAuto();
-            // 白名单模式要靠无障碍识别前台软件
-            if (whitelist && AutoMode.isMaster(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
-        });
-    }
-
-    private void setupDisplay() {
-        float cur = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
-        int selRatio = 0;
-        if (Math.abs(RATIO_VALUES[1] - cur) < 0.001f) selRatio = 1;
-        else sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[0]).apply();
-        MaterialButtonToggleGroup rg = findViewById(R.id.ratio_group);
-        rg.check(selRatio == 0 ? R.id.ratio_169 : R.id.ratio_43);
-        rg.addOnButtonCheckedListener((grp, id, checked) -> {
-            if (!checked) return;
-            sp.edit().putFloat(MaskService.KEY_RATIO,
-                    RATIO_VALUES[id == R.id.ratio_169 ? 0 : 1]).apply();
-            changed();
-        });
-
-        int curLayers = sp.getInt(MaskService.KEY_LAYERS, MaskService.DEFAULT_LAYERS);
-        MaterialButtonToggleGroup sg = findViewById(R.id.strength_group);
-        sg.check(curLayers >= 2 ? R.id.strength_strong : R.id.strength_std);
-        sg.addOnButtonCheckedListener((grp, id, checked) -> {
-            if (!checked) return;
-            sp.edit().putInt(MaskService.KEY_LAYERS,
-                    STRENGTH_LAYERS[id == R.id.strength_std ? 0 : 1]).apply();
-            changed();
-        });
-    }
-
-    private void setupOffset() {
-        int off = Math.max(-100, Math.min(100, sp.getInt(MaskService.KEY_OFFSET, 0)));
-        slider.setValue(off);
-        slider.setLabelFormatter(v -> ((int) v) + " dp");
-        offsetInput.setText(String.valueOf(off));
-
-        java.util.function.IntConsumer setOff = o0 -> {
-            int o = Math.max(-100, Math.min(100, o0));
-            sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
-            offsetBusy = true;
-            slider.setValue(o);
-            offsetInput.setText(String.valueOf(o));
-            offsetBusy = false;
-            offsetInput.clearFocus();
-            lastTick = o;
-            tick(o);
-            changed();
-        };
-
-        slider.addOnChangeListener((s, value, fromUser) -> {
-            if (!fromUser || offsetBusy) return;
-            int o = (int) value;
-            if (o == lastTick) return;
-            lastTick = o;
-            tick(o);
-            sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
-            offsetBusy = true;
-            offsetInput.setText(String.valueOf(o));
-            offsetBusy = false;
-            changed();
-        });
-
-        offsetInput.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence x, int a, int b, int d) { }
-            @Override public void onTextChanged(CharSequence x, int a, int b, int d) { }
-            @Override public void afterTextChanged(Editable e) {
-                if (offsetBusy) return;
-                String t = e.toString().trim();
-                if (t.isEmpty() || t.equals("-") || t.equals("+")) return;
-                int o;
-                try { o = Integer.parseInt(t); } catch (NumberFormatException ex) { return; }
-                o = Math.max(-100, Math.min(100, o));
-                sp.edit().putInt(MaskService.KEY_OFFSET, o).apply();
-                offsetBusy = true;
-                slider.setValue(o);
-                offsetBusy = false;
-                changed();
-            }
-        });
-        // 输入完成/失焦时，把超出范围或为空的内容规整回有效值
-        Runnable normalize = () -> {
-            offsetBusy = true;
-            offsetInput.setText(String.valueOf(sp.getInt(MaskService.KEY_OFFSET, 0)));
-            offsetBusy = false;
-        };
-        offsetInput.setOnEditorActionListener((v, id, ev) -> {
-            normalize.run();
-            offsetInput.clearFocus();
-            return false;
-        });
-        offsetInput.setOnFocusChangeListener((v, has) -> { if (!has) normalize.run(); });
-
-        findViewById(R.id.reset).setOnClickListener(v -> setOff.accept(0));
-        findViewById(R.id.minus).setOnClickListener(
-                v -> setOff.accept(sp.getInt(MaskService.KEY_OFFSET, 0) - 1));
-        findViewById(R.id.plus).setOnClickListener(
-                v -> setOff.accept(sp.getInt(MaskService.KEY_OFFSET, 0) + 1));
     }
 
     // ---------------- 状态刷新 ----------------
 
-    /** 总开关：开着显示“关闭白边”（次要色），关着显示“开启白边”（主色）。 */
-    private void updateUi() {
+    /** 开 → 两侧白边滑入、按钮翻白；关 → 滑出。 */
+    private void updateUi(boolean animate) {
         boolean on = AutoMode.isMaster(this);
-        btn.setText(on ? "关闭白边" : "开启白边");
-        btn.setBackgroundTintList(ColorStateList.valueOf(color(on
-                ? com.google.android.material.R.attr.colorSecondaryContainer
-                : com.google.android.material.R.attr.colorPrimary)));
-        btn.setTextColor(color(on
-                ? com.google.android.material.R.attr.colorOnSecondaryContainer
-                : com.google.android.material.R.attr.colorOnPrimary));
+        power.setOn(on, animate);
         preview.setOn(on);
+        statusTv.setText(on ? "已开启" : "已关闭");
+        statusTv.setTextColor(on ? Ui.PAPER : Ui.DIM);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        if (on) {
+            g.setColor(Ui.PAPER);
+        } else {
+            g.setColor(Color.TRANSPARENT);
+            g.setStroke(Math.max(1, dp(1.5f)), Ui.MUTE);
+        }
+        dot.setBackground(g);
+
+        float hide = dp(14);
+        float toL = on ? 0f : -hide, toR = on ? 0f : hide;
+        if (animate) {
+            barL.animate().translationX(toL).setDuration(380)
+                    .setInterpolator(new DecelerateInterpolator(1.8f)).start();
+            barR.animate().translationX(toR).setDuration(380)
+                    .setInterpolator(new DecelerateInterpolator(1.8f)).start();
+        } else {
+            barL.setTranslationX(toL);
+            barR.setTranslationX(toR);
+        }
         refreshPerms();
     }
 
-    /** 白名单入口：只在白名单模式显示，淡入淡出，位置不变所以界面不跳动。 */
+    /** 白名单入口：只在白名单模式显示，位置不变所以界面不跳动。 */
     private void refreshAuto() {
         boolean whitelist = AutoMode.isEnabled(this);
-        appsRow.setText("管理应用 · " + installedSelectedCount());
-        appsRow.setEnabled(whitelist);
-        appsRow.setClickable(whitelist);
-        appsRow.animate().cancel();
-        appsRow.animate().alpha(whitelist ? 1f : 0f).setDuration(180).start();
-        updateUi();
+        appsLink.setText("白名单应用 " + installedSelectedCount() + "  ›");
+        appsLink.setEnabled(whitelist);
+        appsLink.setClickable(whitelist);
+        appsLink.animate().cancel();
+        appsLink.animate().alpha(whitelist ? 1f : 0f).setDuration(180).start();
+        updateUi(false);
     }
 
     private int installedSelectedCount() {
@@ -278,7 +446,7 @@ public class MainActivity extends AppCompatActivity {
             banner.setVisibility(View.GONE);
         } else {
             banner.setVisibility(View.VISIBLE);
-            banner.setText("还需授权：" + String.join("、", lack) + " · 去设置");
+            banner.setText("还需授权：" + String.join("、", lack) + "  ›");
         }
     }
 
@@ -288,7 +456,7 @@ public class MainActivity extends AppCompatActivity {
     private void toggle() {
         if (AutoMode.isMaster(this)) {
             AutoMode.setMaster(this, false);
-            updateUi();
+            updateUi(true);
             return;
         }
         if (!Settings.canDrawOverlays(this)) {
@@ -296,7 +464,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         AutoMode.setMaster(this, true);
-        updateUi();
+        updateUi(true);
         if (AutoMode.isEnabled(this) && !AutoMode.isAccessibilityEnabled(this)) startGuide();
     }
 
@@ -309,7 +477,7 @@ public class MainActivity extends AppCompatActivity {
         AutoMode.evaluate(this);
     }
 
-    /** 拖动滑块的触感（调轻）：每 1dp 一下很轻的“嗒”，每 10dp 和 0 点位稍实一点。 */
+    /** 拖动卷尺的触感（很轻）：每 1dp 一下，每 10dp 和 0 稍实一点。 */
     private void tick(int o) {
         boolean major = o % 10 == 0;
         if (vib != null && vib.hasVibrator() && Build.VERSION.SDK_INT >= 26
@@ -321,11 +489,7 @@ public class MainActivity extends AppCompatActivity {
             vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
             return;
         }
-        slider.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-    }
-
-    private int dp(int v) {
-        return Math.round(v * density);
+        ruler.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
     }
 
     // ---------------- 权限（一键设置） ----------------
