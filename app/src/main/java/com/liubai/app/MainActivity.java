@@ -597,8 +597,8 @@ public class MainActivity extends Activity {
         String flat = new ComponentName(this, AutoAccessibilityService.class).flattenToString();
         if (Build.VERSION.SDK_INT >= 34) {
             try {
-                Intent direct = new Intent(Settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS);
-                direct.putExtra(Intent.EXTRA_COMPONENT_NAME, flat);
+                Intent direct = new Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS");
+                direct.putExtra("android.intent.extra.COMPONENT_NAME", flat);
                 startActivity(direct);
                 return;
             } catch (Exception ignored) { /* 个别系统没有这个页面，退回列表 */ }

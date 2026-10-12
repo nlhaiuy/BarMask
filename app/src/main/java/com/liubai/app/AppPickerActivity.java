@@ -58,6 +58,7 @@ public class AppPickerActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle b) {
+        super.onCreate(b);
         density = getResources().getDisplayMetrics().density;
         bg = Ui.BG;
         text = Ui.INK;
