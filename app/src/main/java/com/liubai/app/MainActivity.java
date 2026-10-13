@@ -53,11 +53,19 @@ public class MainActivity extends Activity {
 
     private View dot;
     private LinearLayout permBox;
-    private TextView statusTv, appsLink, resetBtn;
+    private TextView statusTv, appsLink, hintTv, offsetTv, strengthDesc, playDesc;
+    private FrameLayout resetBtn;   // 48dp 的点击区域，里面画 32dp 的圆形按钮
     private PreviewView preview;
     private PowerButton power;
     private Slider slider;
     private final Handler repeat = new Handler(Looper.getMainLooper());
+    // 拖动微调时只改内存里的实时值，停手 400ms 后才写一次盘（不能和 repeat 共用，repeat 会被整个清空）
+    private final Handler saveH = new Handler(Looper.getMainLooper());
+    private final Runnable flushOffset = () -> {
+        int v = MaskService.liveOffset;
+        if (v != MaskService.LIVE_NONE) sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
+        MaskService.liveOffset = MaskService.LIVE_NONE;
+    };
 
     // 权限：0 悬浮窗、1 通知、2 后台运行、3 无障碍
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -150,6 +158,7 @@ public class MainActivity extends Activity {
         col.addView(card, clp);
 
         buildModeRow(card);
+        buildPlayRow(card);
         buildRatioRow(card);
         buildStrengthRow(card);
 
@@ -213,6 +222,16 @@ public class MainActivity extends Activity {
         head.addView(chip, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         parent.addView(head, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // 一句话说明现在是什么状态、为什么还没显示（高度固定，文字变化时下面的内容不会跳）
+        hintTv = new TextView(this);
+        hintTv.setTextSize(12);
+        hintTv.setTextColor(Ui.DIM);
+        hintTv.setSingleLine(true);
+        hintTv.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams hlp = lp(ViewGroup.LayoutParams.MATCH_PARENT, dp(20));
+        hlp.topMargin = dp(6);
+        parent.addView(hintTv, hlp);
     }
 
     /** 演示卡：屏幕在上，下面一行 − 滑条 +；屏幕右上角在微调不为 0 时出现“归零”。 */
@@ -231,24 +250,25 @@ public class MainActivity extends Activity {
                 -dp(PreviewView.PAD_X), -dp(PreviewView.PAD_B - 10));
         shot.addView(preview, plp);
 
-        resetBtn = new TextView(this);
-        resetBtn.setText("↺");
-        resetBtn.setTextSize(16);
-        resetBtn.setTextColor(Ui.INK);
-        resetBtn.setGravity(Gravity.CENTER);
+        // 视觉上还是 32dp 的圆，但点击区域放大到 48dp
+        resetBtn = new FrameLayout(this);
         resetBtn.setContentDescription("归零");
+        TextView circle = new TextView(this);
+        circle.setText("↺");
+        circle.setTextSize(16);
+        circle.setTextColor(Ui.INK);
+        circle.setGravity(Gravity.CENTER);
         GradientDrawable rb = new GradientDrawable();
         rb.setShape(GradientDrawable.OVAL);
         rb.setColor(0xEBFFFFFF);
-        resetBtn.setBackground(rb);
-        Ui.lift(resetBtn, 3, 0x331F2638, 0x551F2638);
+        circle.setBackground(rb);
+        Ui.lift(circle, 3, 0x331F2638, 0x551F2638);
+        resetBtn.addView(circle, new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER));
         resetBtn.setAlpha(0f);
         resetBtn.setClickable(false);
         resetBtn.setOnClickListener(v -> setOffset(0));
-        FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(dp(32), dp(32),
-                Gravity.TOP | Gravity.END);
-        rlp.setMargins(0, dp(8), dp(8), 0);
-        shot.addView(resetBtn, rlp);
+        // 圆心仍在原来的位置（离右上角 8dp + 16dp）
+        shot.addView(resetBtn, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP | Gravity.END));
         stage.addView(shot, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout fine = new LinearLayout(this);
@@ -260,23 +280,32 @@ public class MainActivity extends Activity {
         slider = new Slider(this);
         slider.setContentDescription("宽度微调");
         applyRange();
-        int off = Math.max(slider.getMin(), Math.min(Slider.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
+        offsetTv = new TextView(this);
+        offsetTv.setTextSize(12);
+        offsetTv.setTextColor(Ui.DIM);
+        offsetTv.setGravity(Gravity.CENTER);
+        int off = Math.max(slider.getMin(), Math.min(Slider.MAX, MaskService.offset(sp)));
         slider.setValue(off);
         showOffset(off, false);
+        updateOffsetText(off);
         slider.setOnChange((v, user) -> {
-            sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
+            liveOffset(v);
             showOffset(v, true);
             if (user) tick(v);
             changed();
         });
 
-        fine.addView(minus, lp(dp(44), dp(44)));
+        fine.addView(minus, lp(dp(48), dp(48)));
         LinearLayout.LayoutParams slp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
         slp.weight = 1f;
         slp.setMargins(dp(2), 0, dp(2), 0);
         fine.addView(slider, slp);
-        fine.addView(plus, lp(dp(44), dp(44)));
+        fine.addView(plus, lp(dp(48), dp(48)));
         stage.addView(fine, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams olp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        olp.topMargin = dp(2);
+        stage.addView(offsetTv, olp);
 
         LinearLayout.LayoutParams sgp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -333,7 +362,10 @@ public class MainActivity extends Activity {
         t.setText(text);
         t.setTextSize(13);
         t.setTextColor(Ui.DIM);
-        t.setPadding(dp(12), dp(4), 0, dp(4));
+        t.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        t.setPadding(dp(16), 0, dp(2), 0);
+        t.setMinHeight(dp(48));     // 点击区域不小于 48dp
+        t.setMinWidth(dp(48));
         return t;
     }
 
@@ -349,7 +381,10 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
         tlp.weight = 1f;
         row.addView(t, tlp);
-        if (right != null) row.addView(right);
+        if (right != null) {
+            row.setMinimumHeight(dp(48));
+            row.addView(right);
+        }
         return row;
     }
 
@@ -376,6 +411,7 @@ public class MainActivity extends Activity {
 
     private void buildModeRow(LinearLayout card) {
         LinearLayout s = section(card, true);
+        s.setPadding(0, dp(4), 0, dp(14));   // 右边入口自己有 48dp 高，上面的留白相应减掉，整体观感不变
         appsLink = link("");
         appsLink.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
         s.addView(labelRow("生效范围", appsLink));
@@ -387,7 +423,44 @@ public class MainActivity extends Activity {
             AutoMode.evaluate(this);   // 切换后立刻按新模式显示 / 隐藏
             refreshAuto();
         });
+        LinearLayout.LayoutParams segLp = below();
+        segLp.topMargin = 0;               // 行本身已经 48dp 高
+        s.addView(seg, segLp);
+    }
+
+    /** 显示时机：横屏就显示 / 只在有声播放时显示。 */
+    private void buildPlayRow(LinearLayout card) {
+        LinearLayout s = section(card, false);
+        s.addView(labelRow("显示时机", null));
+        Segmented seg = new Segmented(this, new String[]{"横屏即显示", "仅播放时"},
+                AutoMode.isPlayOnly(this) ? 1 : 0);
+        playDesc = hint();
+        seg.setOnSelect(i -> {
+            sp.edit().putBoolean(AutoMode.KEY_PLAY_ONLY, i == 1).apply();
+            playDesc.setText(playText(i));
+            AutoMode.evaluate(this);
+            refreshStatus();
+        });
         s.addView(seg, below());
+        playDesc.setText(playText(seg.getSelected()));
+        LinearLayout.LayoutParams dlp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dlp.topMargin = dp(8);
+        s.addView(playDesc, dlp);
+    }
+
+    private String playText(int i) {
+        return i == 0 ? "进入已选的软件并横屏就显示。"
+                : "只在检测到有声播放时显示；暂停后保留 30 秒。静音播放的视频不会触发。";
+    }
+
+    /** 设置项下面的小字说明。 */
+    private TextView hint() {
+        TextView t = new TextView(this);
+        t.setTextSize(12);
+        t.setTextColor(Ui.DIM);
+        t.setLineSpacing(0, 1.1f);
+        return t;
     }
 
     private void buildRatioRow(LinearLayout card) {
@@ -401,9 +474,9 @@ public class MainActivity extends Activity {
         seg.setOnSelect(i -> {
             sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[i]).apply();
             applyRange();
-            int cur2 = sp.getInt(MaskService.KEY_OFFSET, 0);
+            int cur2 = MaskService.offset(sp);
             if (cur2 < slider.getMin()) {      // 换画幅后黑边变窄，微调跟着收回到新的下限
-                sp.edit().putInt(MaskService.KEY_OFFSET, slider.getMin()).apply();
+                liveOffset(slider.getMin());
                 slider.setValue(slider.getMin());
                 showOffset(slider.getMin(), false);
             }
@@ -419,14 +492,43 @@ public class MainActivity extends Activity {
 
         int curLayers = sp.getInt(MaskService.KEY_LAYERS, MaskService.DEFAULT_LAYERS);
         Segmented seg = new Segmented(this, new String[]{"标准", "加强"}, curLayers >= 2 ? 1 : 0);
+        strengthDesc = hint();
+        strengthDesc.setText(strengthText(curLayers >= 2 ? 1 : 0));
         seg.setOnSelect(i -> {
             sp.edit().putInt(MaskService.KEY_LAYERS, STRENGTH_LAYERS[i]).apply();
+            strengthDesc.setText(strengthText(i));
             changed();
         });
         s.addView(seg, below());
+        LinearLayout.LayoutParams dlp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dlp.topMargin = dp(8);
+        s.addView(strengthDesc, dlp);
+    }
+
+    private String strengthText(int i) {
+        return i == 0 ? "单层白边，适合大多数手机。"
+                : "三层叠加，白边更纯更实。标准下白边发灰、或隐约透出视频边缘时选它。";
     }
 
     // ---------------- 微调 ----------------
+
+    /** 拖动 / 点按中的微调值：先放内存里，停手一会儿再写盘。 */
+    private void liveOffset(int v) {
+        MaskService.liveOffset = v;
+        saveH.removeCallbacks(flushOffset);
+        saveH.postDelayed(flushOffset, 400);
+    }
+
+    /** 滑块下面的小字：带上单位，并告诉你这一档对应一侧白边实际多宽。 */
+    private void updateOffsetText(int v) {
+        if (offsetTv == null) return;
+        float ratio = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
+        String off = v == 0 ? "0 dp（按比例自动）" : (v > 0 ? "+" : "") + v + " dp";
+        String t = "微调 " + off + " · 单侧白边 " + Ui.barDp(this, ratio, v) + " dp";
+        offsetTv.setText(t);
+        if (slider != null) slider.setContentDescription("宽度微调，当前 " + off);
+    }
 
     private void showOffset(int v, boolean animate) {
         if (resetBtn == null) return;
@@ -451,8 +553,8 @@ public class MainActivity extends Activity {
 
     private void setOffset(int v) {
         v = Math.max(slider.getMin(), Math.min(Slider.MAX, v));
-        if (v == slider.getValue() && sp.getInt(MaskService.KEY_OFFSET, 0) == v) return;
-        sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
+        if (v == slider.getValue() && MaskService.offset(sp) == v) return;
+        liveOffset(v);
         slider.setValue(v);
         showOffset(v, true);
         tick(v);
@@ -465,6 +567,9 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         repeat.removeCallbacksAndMessages(null);
+        AutoMode.setStateListener(null);
+        saveH.removeCallbacks(flushOffset);
+        flushOffset.run();      // 离开页面前把还没写盘的微调值写掉
     }
 
     @Override
@@ -477,6 +582,7 @@ public class MainActivity extends Activity {
         }
         updateUi(false);
         refreshAuto();
+        AutoMode.setStateListener(this::refreshStatus);
     }
 
     // ---------------- 状态刷新 ----------------
@@ -486,18 +592,33 @@ public class MainActivity extends Activity {
         boolean on = AutoMode.isMaster(this);
         power.setOn(on, animate);
         preview.setOn(on);
-        statusTv.setText(on ? "已开启" : "已关闭");
+        refreshStatus();
+        refreshPerms();
+    }
+
+    /**
+     * 右上角状态：已关闭 / 待命中 / 生效中，下面一行小字说明原因。
+     * 只刷新这两处（不重建授权卡），遮罩状态变化时由 AutoMode 回调。
+     */
+    private void refreshStatus() {
+        if (statusTv == null || dot == null) return;
+        boolean on = AutoMode.isMaster(this);
+        boolean active = on && AutoMode.isActive();
+        statusTv.setText(!on ? "已关闭" : active ? "生效中" : "待命中");
         statusTv.setTextColor(on ? Ui.INK : Ui.DIM);
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.OVAL);
-        if (on) {
+        if (active) {
             g.setColor(Ui.GREEN);
             g.setStroke(dp(2), 0x552EB67D);
+        } else if (on) {
+            g.setColor(0xFFF2A93B);          // 琥珀色：开着，但还没到该显示的时候
+            g.setStroke(dp(2), 0x55F2A93B);
         } else {
             g.setColor(0xFFC9CCD6);
         }
         dot.setBackground(g);
-        refreshPerms();
+        if (hintTv != null) hintTv.setText(AutoMode.statusHint(this));
     }
 
     /** 白名单入口：只在白名单模式显示，位置不变所以界面不跳动。 */
@@ -547,8 +668,8 @@ public class MainActivity extends Activity {
             updateUi(true);
             return;
         }
-        if (!Settings.canDrawOverlays(this)) {
-            nudgePerms("先开启悬浮窗权限");
+        if (!AutoMode.canShow(this)) {
+            nudgePerms(AutoMode.isEnabled(this) ? "先开启无障碍权限" : "先开启悬浮窗权限");
             return;
         }
         AutoMode.setMaster(this, true);
@@ -570,10 +691,9 @@ public class MainActivity extends Activity {
     /** 设置有变化：让正在显示的遮罩立刻刷新。 */
     private void changed() {
         preview.invalidate();
-        // 服务正在运行时直接让它原地更新（不重启、不重建），拖动微调才不会闪
-        if (MaskService.running && !MaskService.refresh()) {
-            startForegroundService(new Intent(this, MaskService.class));
-        }
+        updateOffsetText(slider.getValue());
+        // 遮罩正在显示时直接让它原地更新（不重启、不重建），拖动微调才不会闪
+        AutoMode.refreshMask(this);
         AutoMode.evaluate(this);
     }
 
@@ -603,15 +723,17 @@ public class MainActivity extends Activity {
 
     /** 这一项当前是否需要（通知仅 Android 13+，无障碍仅白名单模式）。 */
     private boolean applicable(int i) {
-        if (i == 1) return Build.VERSION.SDK_INT >= 33;
-        if (i == 3) return AutoMode.isEnabled(this);
+        boolean whitelist = AutoMode.isEnabled(this);
+        if (i == 0) return !whitelist;                       // 白名单模式：遮罩挂在无障碍上，不用悬浮窗权限
+        if (i == 1) return Build.VERSION.SDK_INT >= 33 && !whitelist;   // 没有前台通知就不用通知权限
+        if (i == 3) return whitelist;
         return true;
     }
 
     private boolean missing(int i) {
         switch (i) {
             case 0:
-                return !Settings.canDrawOverlays(this);
+                return !Settings.canDrawOverlays(this) && !AutoMode.isAccessibilityEnabled(this);
             case 1:
                 return Build.VERSION.SDK_INT >= 33
                         && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
@@ -630,7 +752,8 @@ public class MainActivity extends Activity {
     }
 
     private String permDesc(int i) {
-        return i == 0 ? "在视频上方显示遮罩" : "白名单模式下，识别当前打开的视频软件";
+        return i == 0 ? "全局模式下，在视频上方显示遮罩"
+                : "识别当前打开的视频软件，并直接用它显示遮罩（无需悬浮窗权限）";
     }
 
     private void buildPerms(LinearLayout col) {

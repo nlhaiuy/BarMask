@@ -2,6 +2,8 @@ name: Build APK
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: write   # 发布 Release 需要
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,7 +24,27 @@ jobs:
               | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           }
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "Liubai-1.0.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk Liubai.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Liubai-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: Liubai-1.0.${{ github.run_number }}.apk
+      # main 分支每次构建成功都发一个 Release，APK 直接可下载（不用登录 GitHub）。
+      # 固定链接：https://github.com/${{ github.repository }}/releases/latest/download/Liubai.apk
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: 留白 v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: |
+            Liubai-1.0.${{ github.run_number }}.apk
+            Liubai.apk
+          body: |
+            调试签名的安装包（每次构建签名一致，可直接覆盖安装）。
+            提交：${{ github.sha }}
