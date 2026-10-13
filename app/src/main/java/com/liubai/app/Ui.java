@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.View;
 
 /** 留白的视觉常量：浅蓝白底、白色卡片、一抹蓝色，没有大面积的深色。 */
@@ -12,17 +13,20 @@ final class Ui {
     static final int BG = 0xFFF3F6FC;        // 页面底色
     static final int CARD = 0xFFFFFFFF;      // 卡片
     static final int INK = 0xFF1F2638;       // 主文字
-    static final int DIM = 0xFF8791A6;       // 次要文字
+    static final int DIM = 0xFF5F6A83;       // 次要文字（白底约 5.4:1，够清楚）
     static final int LINE = 0xFFE9EEF7;      // 细分隔线
     static final int CHIP = 0xFFEEF2FA;      // 控件底槽
     static final int TRACK = 0xFFDDE5F3;     // 滑条未走过的部分
     static final int PRI = 0xFF4F7CFF;       // 主蓝
     static final int PRI2 = 0xFF7C9BFF;      // 浅一点的蓝（渐变起点）
+    static final int PRI_SOFT = 0xFFE6EDFF;  // 蓝色浅底
     static final int GREEN = 0xFF2EB67D;     // “已开启”的绿点
     static final int EDGE = 0xFF2B3042;      // 演示屏里的黑边
     static final int OUTLINE = 0xFFC3D0EC;   // 演示屏外的细描边
-    static final int WARN_BG = 0xFFFFF4DC;
-    static final int WARN_TX = 0xFF7A5A12;
+    static final int WARN_BG = 0xFFFFF8E6;   // 授权提示卡
+    static final int WARN_TX = 0xFF5C4410;
+    static final int WARN_SUB = 0xFF86703F;
+    static final int WARN_LINE = 0x1A7A5A12;
 
     private static final ArgbEvaluator EV = new ArgbEvaluator();
 
@@ -46,6 +50,29 @@ final class Ui {
         g.setColor(color);
         g.setCornerRadius(radiusPx);
         return g;
+    }
+
+    /** 蓝色渐变（左上浅、右下深）的圆角底。 */
+    static GradientDrawable gradient(float radiusPx) {
+        GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR, new int[]{PRI2, PRI});
+        g.setCornerRadius(radiusPx);
+        return g;
+    }
+
+    /** 给 View 一个带淡蓝阴影的悬浮感（Android 9+ 阴影带颜色，更柔和）。 */
+    static void lift(View v, float elevDp, int ambient, int spot) {
+        v.setElevation(dp(v.getContext(), elevDp));
+        if (Build.VERSION.SDK_INT >= 28) {
+            v.setOutlineAmbientShadowColor(ambient);
+            v.setOutlineSpotShadowColor(spot);
+        }
+    }
+
+    /** 白色圆角卡片 + 淡蓝阴影。 */
+    static void card(View v, float radiusDp) {
+        v.setBackground(round(CARD, dp(v.getContext(), radiusDp)));
+        lift(v, 6, 0x294F7CFF, 0x544F7CFF);
     }
 
     /** 浅色页面：状态栏、导航栏跟随底色，图标用深色。 */

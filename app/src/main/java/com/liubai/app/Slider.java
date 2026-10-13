@@ -2,12 +2,17 @@ package com.liubai.app;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.view.MotionEvent;
 import android.view.View;
 
-/** 宽度微调滑条：-100 ~ +100，每 1dp 一档。蓝色已走过部分，白色圆形滑块。 */
+/**
+ * 宽度微调滑条：-100 ~ +100，每 1dp 一档。
+ * 蓝色渐变的已走过部分，白色圆形滑块，当前数值直接写在滑块里，轨道正中间有一道 0 刻度。
+ */
 public class Slider extends View {
     public interface OnChange { void onChange(int value, boolean fromUser); }
 
@@ -22,6 +27,8 @@ public class Slider extends View {
     public Slider(Context c) {
         super(c);
         setClickable(true);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);   // 让滑块的阴影在所有机型上都能画出来
+        paint.setTextAlign(Paint.Align.CENTER);
     }
 
     public void setOnChange(OnChange cb) { this.cb = cb; }
@@ -37,10 +44,10 @@ public class Slider extends View {
 
     @Override
     protected void onMeasure(int w, int h) {
-        setMeasuredDimension(MeasureSpec.getSize(w), Math.round(Ui.dp(getContext(), 40)));
+        setMeasuredDimension(MeasureSpec.getSize(w), Math.round(Ui.dp(getContext(), 44)));
     }
 
-    private float thumbR() { return Ui.dp(getContext(), 13); }
+    private float thumbR() { return Ui.dp(getContext(), 16); }
 
     private float xFor(int v) {
         float r = thumbR();
@@ -56,28 +63,46 @@ public class Slider extends View {
     @Override
     protected void onDraw(Canvas cv) {
         Context c = getContext();
-        float h = getHeight(), cy = h / 2f, tr = Ui.dp(c, 2), x = xFor(value);
+        float h = getHeight(), cy = h / 2f, half = Ui.dp(c, 2), x = xFor(value);
         float left = thumbR(), right = getWidth() - thumbR();
 
         // 轨道
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Ui.TRACK);
-        rect.set(left, cy - tr, right, cy + tr);
-        cv.drawRoundRect(rect, tr, tr, paint);
+        rect.set(left, cy - half, right, cy + half);
+        cv.drawRoundRect(rect, half, half, paint);
 
         // 走过的部分
-        paint.setColor(Ui.PRI);
-        rect.set(left, cy - tr, x, cy + tr);
-        cv.drawRoundRect(rect, tr, tr, paint);
+        paint.setShader(new LinearGradient(left, 0, right, 0, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+        rect.set(left, cy - half, Math.max(left + 1, x), cy + half);
+        cv.drawRoundRect(rect, half, half, paint);
+        paint.setShader(null);
 
-        // 滑块：白底蓝边，按下时稍微放大
+        // 0 刻度
+        float mid = (left + right) / 2f;
+        paint.setColor(0xFFC9D5EE);
+        rect.set(mid - Ui.dp(c, 1), cy - Ui.dp(c, 7), mid + Ui.dp(c, 1), cy + Ui.dp(c, 7));
+        cv.drawRoundRect(rect, Ui.dp(c, 1), Ui.dp(c, 1), paint);
+
+        // 滑块：白底 + 蓝色细环 + 柔和阴影，数值写在里面
         float r = thumbR() * (dragging ? 1.08f : 1f);
-        paint.setColor(0x224F7CFF);
-        cv.drawCircle(x, cy + Ui.dp(c, 2), r + Ui.dp(c, 1), paint);   // 一点点阴影
-        paint.setColor(Ui.PRI);
-        cv.drawCircle(x, cy, r, paint);
         paint.setColor(0xFFFFFFFF);
-        cv.drawCircle(x, cy, r - Ui.dp(c, 2), paint);
+        paint.setShadowLayer(Ui.dp(c, dragging ? 9 : 6), 0, Ui.dp(c, dragging ? 4 : 3), 0x664F7CFF);
+        cv.drawCircle(x, cy, r, paint);
+        paint.clearShadowLayer();
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(Ui.dp(c, 2));
+        paint.setColor(Ui.PRI);
+        cv.drawCircle(x, cy, r - Ui.dp(c, 1), paint);
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setFakeBoldText(true);
+        paint.setTextSize(Ui.sp(c, Math.abs(value) >= 100 ? 10 : 11));
+        paint.setLetterSpacing(-0.02f);
+        String t = (value > 0 ? "+" : "") + value;
+        cv.drawText(t, x, cy - (paint.ascent() + paint.descent()) / 2f, paint);
+        paint.setFakeBoldText(false);
+        paint.setLetterSpacing(0f);
     }
 
     @Override

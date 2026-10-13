@@ -4,6 +4,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.widget.TextView;
@@ -23,7 +24,7 @@ public class PowerButton extends TextView {
         bg.setOrientation(GradientDrawable.Orientation.TL_BR);
         bg.setCornerRadius(Ui.dp(c, 31));
         setBackground(bg);
-        setElevation(Ui.dp(c, 6));
+        Ui.lift(this, 8, 0x404F7CFF, 0x884F7CFF);
         setClickable(true);
         apply();
     }

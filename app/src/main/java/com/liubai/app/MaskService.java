@@ -13,6 +13,7 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
+import android.animation.ValueAnimator;
 import android.os.Build;
 import android.os.IBinder;
 import android.service.quicksettings.TileService;
@@ -34,9 +35,14 @@ public class MaskService extends Service {
 
     private static final String CHANNEL_ID = "mask";
     public static boolean running = false;
+    /** 正在运行的服务：设置页拖动微调时直接调它，不用每一格都重新启动服务。 */
+    private static MaskService instance;
+
+    private static final long FADE_IN_MS = 180, FADE_OUT_MS = 160;
 
     private WindowManager wm;
     private final java.util.List<View> bars = new java.util.ArrayList<>();
+    private int builtW, builtH, builtLayers;    // 当前这批遮罩是按什么尺寸建的
 
     @Override
     public void onCreate() {
@@ -57,7 +63,16 @@ public class MaskService extends Service {
             startForeground(1, n);
         }
         running = true;
+        instance = this;
         refreshTile();
+    }
+
+    /** 设置变了：能原地改就原地改，不拆也不重建，拖动微调时就不会闪。 */
+    public static boolean refresh() {
+        MaskService s = instance;
+        if (s == null) return false;
+        s.update();
+        return true;
     }
 
     private void refreshTile() {
@@ -81,14 +96,15 @@ public class MaskService extends Service {
 
     @SuppressWarnings("deprecation")
     private void update() {
-        removeViews();
-
         DisplayManager dm = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
         Display d = dm.getDisplay(Display.DEFAULT_DISPLAY);
         DisplayMetrics m = new DisplayMetrics();
         d.getRealMetrics(m);
         int w = m.widthPixels, h = m.heightPixels;
-        if (w <= h) return; // 竖屏不需要遮罩
+        if (w <= h) {            // 竖屏不需要遮罩
+            removeViews(false);
+            return;
+        }
 
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         float ratio = sp.getFloat(KEY_RATIO, DEFAULT_RATIO);
@@ -97,12 +113,68 @@ public class MaskService extends Service {
 
         int bar = Math.round((w - h * ratio) / 2f) + offsetPx;
         bar = Math.max(0, Math.min(bar, w / 2));
-        if (bar == 0) return;
+        if (bar == 0) {
+            removeViews(false);
+            return;
+        }
 
+        // 层数、屏幕高度都没变：只改宽度，原有的悬浮窗直接调整，不拆不建
+        if (bars.size() == layers * 2 && builtH == h && builtLayers == layers) {
+            if (builtW != bar) {
+                for (View v : bars) {
+                    try {
+                        WindowManager.LayoutParams lp = (WindowManager.LayoutParams) v.getLayoutParams();
+                        lp.width = bar;
+                        wm.updateViewLayout(v, lp);
+                    } catch (Exception ignored) { }
+                }
+                builtW = bar;
+            }
+            return;
+        }
+
+        removeViews(false);
         for (int i = 0; i < layers; i++) {
             bars.add(addBar(Gravity.TOP | Gravity.START, bar, h));
             bars.add(addBar(Gravity.TOP | Gravity.END, bar, h));
         }
+        builtW = bar;
+        builtH = h;
+        builtLayers = layers;
+        fade(new java.util.ArrayList<>(bars), 0f, 1f, FADE_IN_MS, false);
+    }
+
+    /**
+     * 整体淡入 / 淡出：用窗口自身的透明度，不改变悬浮窗的像素格式（所以遮得还是一样实）。
+     * 每个窗口一帧一帧地更新，总共约 0.2 秒。
+     */
+    private void fade(final java.util.List<View> views, float from, float to, long ms,
+                      final boolean removeAtEnd) {
+        final WindowManager manager = wm;
+        ValueAnimator a = ValueAnimator.ofFloat(from, to);
+        a.setDuration(ms);
+        a.addUpdateListener(an -> {
+            float alpha = (Float) an.getAnimatedValue();
+            for (View v : views) {
+                try {
+                    WindowManager.LayoutParams lp = (WindowManager.LayoutParams) v.getLayoutParams();
+                    if (lp == null) continue;
+                    lp.alpha = alpha;
+                    manager.updateViewLayout(v, lp);
+                } catch (Exception ignored) { }
+            }
+        });
+        if (removeAtEnd) {
+            a.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(android.animation.Animator animation) {
+                    for (View v : views) {
+                        try { manager.removeView(v); } catch (Exception ignored) { }
+                    }
+                }
+            });
+        }
+        a.start();
     }
 
     private View addBar(int gravity, int width, int height) {
@@ -118,6 +190,7 @@ public class MaskService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.OPAQUE);
         lp.gravity = gravity;
+        lp.alpha = 0f;
         lp.x = 0;
         lp.y = 0;
         lp.layoutInDisplayCutoutMode =
@@ -126,17 +199,25 @@ public class MaskService extends Service {
         return v;
     }
 
-    private void removeViews() {
-        for (View v : bars) {
-            try { wm.removeView(v); } catch (Exception ignored) { }
+    /** 去掉全部遮罩；animate 为 true 时先淡出再去掉（只用在整个服务关闭时）。 */
+    private void removeViews(boolean animate) {
+        if (bars.isEmpty()) return;
+        if (animate) {
+            fade(new java.util.ArrayList<>(bars), 1f, 0f, FADE_OUT_MS, true);
+        } else {
+            for (View v : bars) {
+                try { wm.removeView(v); } catch (Exception ignored) { }
+            }
         }
         bars.clear();
+        builtW = builtH = builtLayers = 0;
     }
 
     @Override
     public void onDestroy() {
-        removeViews();
+        removeViews(true);
         running = false;
+        if (instance == this) instance = null;
         refreshTile();
         super.onDestroy();
     }

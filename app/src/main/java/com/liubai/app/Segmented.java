@@ -39,6 +39,7 @@ public class Segmented extends View {
         this.pos = sel;
         paint.setTextAlign(Paint.Align.CENTER);
         setClickable(true);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);   // 让滑块的阴影在所有机型上都能画出来
     }
 
     public void setOnSelect(OnSelect cb) { this.cb = cb; }
@@ -81,8 +82,10 @@ public class Segmented extends View {
         float segW = (w - 2 * pad) / labels.length;
         float l = pad + pos * segW, r = pad + (pos + 1) * segW;
         paint.setShader(new LinearGradient(l, pad, r, h - pad, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+        paint.setShadowLayer(Ui.dp(c, 5), 0, Ui.dp(c, 2.5f), 0x664F7CFF);
         rect.set(l, pad, r, h - pad);
         cv.drawRoundRect(rect, Ui.dp(c, 11), Ui.dp(c, 11), paint);
+        paint.clearShadowLayer();
         paint.setShader(null);
 
         // 文字（和可选的画幅图标）

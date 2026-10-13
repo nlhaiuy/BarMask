@@ -6,19 +6,29 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -33,7 +43,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** 白名单：选择“在哪些软件里自动开启留白”，支持搜索，可同时选多个。 */
+/**
+ * 白名单：选择“在哪些软件里自动开启留白”，支持搜索，可同时选多个。
+ * 和主页同一套颜色：浅蓝白底、白色卡片、蓝色渐变的勾选。
+ * 顶部有两个快捷操作：勾选推荐应用（常见视频软件）、取消全部勾选（可撤销）。
+ */
 public class AppPickerActivity extends Activity {
     private static class Item {
         String pkg;
@@ -41,6 +55,7 @@ public class AppPickerActivity extends Activity {
         String key;      // 小写的名称 + 包名，用来搜索
         Drawable icon;
         boolean checked;
+        boolean rec;     // 是不是推荐的视频软件
     }
 
     private final List<Item> all = new ArrayList<>();
@@ -48,76 +63,207 @@ public class AppPickerActivity extends Activity {
     private ListView list;
     private BaseAdapter adapter;
     private EditText search;
-    private TextView countTv;
+    private TextView countTv, recBtn, clrBtn;
+    private LinearLayout snack;
+    private TextView snackMsg, snackUndo;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable hideSnack;
     private float density;
-    private int bg, text, sub, field;
 
-    private int dp(int v) {
+    private int dp(float v) {
         return Math.round(v * density);
+    }
+
+    private LinearLayout.LayoutParams lp(int w, int h) {
+        return new LinearLayout.LayoutParams(w, h);
     }
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         density = getResources().getDisplayMetrics().density;
-        bg = Ui.BG;
-        text = Ui.INK;
-        sub = Ui.DIM;
-        field = Ui.CARD;
         Ui.lightWindow(this);
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(bg);
+        FrameLayout page = new FrameLayout(this);
+        page.setBackgroundColor(Ui.BG);
 
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        page.addView(col, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // ---- 顶栏：返回 · 标题 · 已选数量 ----
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.VERTICAL);
-        head.setPadding(dp(20), dp(16), dp(20), dp(8));
+        head.setPadding(dp(20), dp(22), dp(20), dp(12));
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView back = new ImageView(this);
+        back.setImageResource(R.drawable.ic_back);
+        back.setScaleType(ImageView.ScaleType.CENTER);
+        back.setContentDescription("返回");
+        GradientDrawable bb = new GradientDrawable();
+        bb.setShape(GradientDrawable.OVAL);
+        bb.setColor(Ui.CARD);
+        back.setBackground(bb);
+        Ui.lift(back, 3, 0x264F7CFF, 0x404F7CFF);
+        back.setOnClickListener(v -> finish());
+        bar.addView(back, lp(dp(40), dp(40)));
+
         TextView title = new TextView(this);
         title.setText("白名单");
-        title.setTextSize(30);
-        title.setTextColor(text);
+        title.setTextSize(28);
+        title.setTextColor(Ui.INK);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        head.addView(title);
+        title.setLetterSpacing(0.04f);
+        title.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams tlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.weight = 1f;
+        tlp.leftMargin = dp(12);
+        bar.addView(title, tlp);
+
         countTv = new TextView(this);
         countTv.setTextSize(13);
-        countTv.setTextColor(sub);
-        countTv.setText("");
-        head.addView(countTv);
+        countTv.setTextColor(Ui.DIM);
+        countTv.setPadding(dp(12), dp(6), dp(12), dp(6));
+        countTv.setBackground(Ui.round(Ui.CARD, dp(20)));
+        Ui.lift(countTv, 3, 0x264F7CFF, 0x404F7CFF);
+        bar.addView(countTv);
+        head.addView(bar, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // 搜索框
+        // ---- 搜索框 ----
+        LinearLayout sbox = new LinearLayout(this);
+        sbox.setOrientation(LinearLayout.HORIZONTAL);
+        sbox.setGravity(Gravity.CENTER_VERTICAL);
+        sbox.setPadding(dp(14), 0, dp(14), 0);
+        sbox.setBackground(Ui.round(Ui.CARD, dp(16)));
+        Ui.lift(sbox, 3, 0x264F7CFF, 0x404F7CFF);
+        ImageView mag = new ImageView(this);
+        mag.setImageResource(R.drawable.ic_search);
+        sbox.addView(mag, lp(dp(20), dp(20)));
         search = new EditText(this);
         search.setHint("搜索应用");
         search.setSingleLine(true);
         search.setTextSize(15);
-        search.setPadding(dp(14), dp(10), dp(14), dp(10));
-        GradientDrawable sbg = new GradientDrawable();
-        sbg.setColor(field);
-        search.setTextColor(text);
-        search.setHintTextColor(sub);
-        sbg.setCornerRadius(dp(14));
-        search.setBackground(sbg);
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        slp.topMargin = dp(12);
-        head.addView(search, slp);
-        page.addView(head);
+        search.setTextColor(Ui.INK);
+        search.setHintTextColor(0xFF8A94AA);
+        search.setBackground(null);
+        search.setPadding(dp(10), 0, 0, 0);
+        LinearLayout.LayoutParams elp = lp(0, ViewGroup.LayoutParams.MATCH_PARENT);
+        elp.weight = 1f;
+        sbox.addView(search, elp);
+        LinearLayout.LayoutParams slp = lp(ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+        slp.topMargin = dp(14);
+        head.addView(sbox, slp);
 
+        // ---- 快捷操作 ----
+        LinearLayout acts = new LinearLayout(this);
+        acts.setOrientation(LinearLayout.HORIZONTAL);
+        recBtn = actionButton("勾选推荐应用", true);
+        clrBtn = actionButton("取消全部勾选", false);
+        LinearLayout.LayoutParams a1 = lp(0, dp(42));
+        a1.weight = 1f;
+        a1.rightMargin = dp(5);
+        LinearLayout.LayoutParams a2 = lp(0, dp(42));
+        a2.weight = 1f;
+        a2.leftMargin = dp(5);
+        acts.addView(recBtn, a1);
+        acts.addView(clrBtn, a2);
+        LinearLayout.LayoutParams alp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp.topMargin = dp(12);
+        head.addView(acts, alp);
+        col.addView(head);
+
+        // ---- 列表：一张白色圆角卡片 ----
+        FrameLayout card = new FrameLayout(this);
+        Ui.card(card, 24);
+        card.setClipToOutline(true);
         list = new ListView(this);
         list.setDividerHeight(0);
-        page.addView(list, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        list.setVerticalScrollBarEnabled(false);
+        list.setPadding(dp(16), dp(4), dp(16), dp(4));
+        list.setClipToPadding(true);
+        list.setSelector(android.R.color.transparent);
+        card.addView(list, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams clp = lp(ViewGroup.LayoutParams.MATCH_PARENT, 0);
+        clp.weight = 1f;
+        clp.setMargins(dp(20), dp(2), dp(20), dp(20));
+        col.addView(card, clp);
+
+        // ---- 撤销提示 ----
+        snack = new LinearLayout(this);
+        snack.setOrientation(LinearLayout.HORIZONTAL);
+        snack.setGravity(Gravity.CENTER_VERTICAL);
+        snack.setPadding(dp(18), dp(11), dp(18), dp(11));
+        snack.setBackground(Ui.round(0xEB1F2638, dp(22)));
+        Ui.lift(snack, 8, 0x551F2638, 0x881F2638);
+        snackMsg = new TextView(this);
+        snackMsg.setTextSize(13);
+        snackMsg.setTextColor(0xFFFFFFFF);
+        snack.addView(snackMsg);
+        snackUndo = new TextView(this);
+        snackUndo.setText("撤销");
+        snackUndo.setTextSize(13);
+        snackUndo.setTextColor(0xFFA9BEFF);
+        snackUndo.setTypeface(Typeface.DEFAULT_BOLD);
+        snackUndo.setPadding(dp(16), dp(4), 0, dp(4));
+        snack.addView(snackUndo);
+        snack.setVisibility(View.GONE);
+        FrameLayout.LayoutParams snlp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        snlp.bottomMargin = dp(40);
+        page.addView(snack, snlp);
+
         setContentView(page);
+        updateCount();
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int c, int d) { }
             @Override public void onTextChanged(CharSequence s, int a, int c, int d) { }
             @Override public void afterTextChanged(Editable s) { refilter(); }
         });
+        recBtn.setOnClickListener(v -> {
+            if (!recBtn.isEnabled()) return;
+            final boolean[] before = snapshot();
+            for (Item it : all) if (it.rec) it.checked = true;
+            changedAll("已勾选推荐的视频应用", before);
+        });
+        clrBtn.setOnClickListener(v -> {
+            if (!clrBtn.isEnabled()) return;
+            final boolean[] before = snapshot();
+            for (Item it : all) it.checked = false;
+            changedAll("已取消全部勾选", before);
+        });
 
         new Thread(this::load).start();
+    }
+
+    private TextView actionButton(String text, boolean primary) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(14);
+        t.setGravity(Gravity.CENTER);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setClickable(true);
+        GradientDrawable g = Ui.round(primary ? Ui.PRI_SOFT : Ui.CARD, dp(14));
+        if (primary) g.setStroke(Math.max(1, dp(1)), 0x334F7CFF);
+        t.setBackground(g);
+        t.setTextColor(primary ? Ui.PRI : Ui.DIM);
+        if (!primary) Ui.lift(t, 3, 0x264F7CFF, 0x404F7CFF);
+        return t;
+    }
+
+    private void setActive(TextView t, boolean on) {
+        t.setEnabled(on);
+        t.setAlpha(on ? 1f : 0.42f);
     }
 
     private void load() {
@@ -135,6 +281,7 @@ public class AppPickerActivity extends Activity {
             it.key = (it.label.toString() + " " + pkg).toLowerCase(Locale.ROOT);
             it.icon = ri.loadIcon(pm);
             it.checked = sel.contains(pkg);
+            it.rec = AutoMode.isRecommended(pkg);
             map.put(pkg, it);
         }
         runOnUiThread(() -> {
@@ -152,7 +299,7 @@ public class AppPickerActivity extends Activity {
         });
     }
 
-    /** 按搜索词过滤；已勾选的排前面，其余按名称排序。选中状态在搜索前后保持不变。 */
+    /** 按搜索词过滤；已勾选的排前面，其次是推荐的，其余按名称排序。 */
     private void refilter() {
         String q = search.getText().toString().trim().toLowerCase(Locale.ROOT);
         shown.clear();
@@ -162,10 +309,53 @@ public class AppPickerActivity extends Activity {
         Collator col = Collator.getInstance(Locale.CHINA);
         shown.sort((a, c) -> {
             if (a.checked != c.checked) return a.checked ? -1 : 1;
+            if (a.rec != c.rec) return a.rec ? -1 : 1;
             return col.compare(a.label.toString(), c.label.toString());
         });
         if (adapter != null) adapter.notifyDataSetChanged();
         updateCount();
+    }
+
+    private boolean[] snapshot() {
+        boolean[] s = new boolean[all.size()];
+        for (int i = 0; i < s.length; i++) s[i] = all.get(i).checked;
+        return s;
+    }
+
+    /** 批量改动：保存、重新排序，并给出“撤销”。 */
+    private void changedAll(String msg, final boolean[] before) {
+        save();
+        refilter();
+        list.setSelection(0);
+        list.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
+        showSnack(msg, () -> {
+            for (int i = 0; i < before.length && i < all.size(); i++) all.get(i).checked = before[i];
+            save();
+            refilter();
+        });
+    }
+
+    private void showSnack(String msg, Runnable undo) {
+        snackMsg.setText(msg);
+        snackUndo.setOnClickListener(v -> {
+            undo.run();
+            hideSnackNow();
+        });
+        if (hideSnack != null) handler.removeCallbacks(hideSnack);
+        snack.animate().cancel();
+        snack.setAlpha(0f);
+        snack.setTranslationY(dp(10));
+        snack.setVisibility(View.VISIBLE);
+        snack.animate().alpha(1f).translationY(0).setDuration(220).start();
+        hideSnack = this::hideSnackNow;
+        handler.postDelayed(hideSnack, 4200);
+    }
+
+    private void hideSnackNow() {
+        if (hideSnack != null) handler.removeCallbacks(hideSnack);
+        snack.animate().cancel();
+        snack.animate().alpha(0f).translationY(dp(10)).setDuration(200)
+                .withEndAction(() -> snack.setVisibility(View.GONE)).start();
     }
 
     private void save() {
@@ -178,9 +368,74 @@ public class AppPickerActivity extends Activity {
 
     private void updateCount() {
         int n = 0;
-        for (Item it : all) if (it.checked) n++;
-        countTv.setText("已选 " + n + " 个"
-                + (search.getText().length() > 0 ? " · 搜到 " + shown.size() + " 个" : ""));
+        boolean recLeft = false;
+        for (Item it : all) {
+            if (it.checked) n++;
+            if (it.rec && !it.checked) recLeft = true;
+        }
+        String num = String.valueOf(n);
+        SpannableString s = new SpannableString("已选 " + num + " 个");
+        s.setSpan(new ForegroundColorSpan(Ui.PRI), 3, 3 + num.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        s.setSpan(new StyleSpan(Typeface.BOLD), 3, 3 + num.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        countTv.setText(s);
+        setActive(recBtn, recLeft);     // 推荐的都勾上了就不用再点
+        setActive(clrBtn, n > 0);
+    }
+
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
+    }
+
+    /** 勾选圈：没选是一圈浅灰细线，选中是蓝色渐变 + 白色对勾。 */
+    private static class CheckDot extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path tick = new Path();
+        private boolean on;
+
+        CheckDot(Context c) {
+            super(c);
+            setLayerType(LAYER_TYPE_SOFTWARE, null);
+        }
+
+        void setOn(boolean v) {
+            if (v != on) {
+                on = v;
+                invalidate();
+            }
+        }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            Context c = getContext();
+            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f - Ui.dp(c, 1.5f);
+            float cx = w / 2f, cy = h / 2f;
+            if (on) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setShader(new LinearGradient(0, 0, w, h, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+                paint.setShadowLayer(Ui.dp(c, 4), 0, Ui.dp(c, 2), 0x884F7CFF);
+                cv.drawCircle(cx, cy, r, paint);
+                paint.clearShadowLayer();
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Ui.dp(c, 2.2f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                paint.setColor(0xFFFFFFFF);
+                float u = r / 12f * 1.0f;   // 24 格坐标 → 实际尺寸
+                tick.reset();
+                tick.moveTo(cx - 5.2f * u, cy + 0.2f * u);
+                tick.lineTo(cx - 1.4f * u, cy + 4.0f * u);
+                tick.lineTo(cx + 5.6f * u, cy - 3.8f * u);
+                cv.drawPath(tick, paint);
+            } else {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Ui.dp(c, 1.5f));
+                paint.setColor(0xFFC5D0E6);
+                cv.drawCircle(cx, cy, r, paint);
+            }
+        }
     }
 
     private class Adapter extends BaseAdapter {
@@ -191,29 +446,60 @@ public class AppPickerActivity extends Activity {
         @Override
         public View getView(int i, View convert, ViewGroup parent) {
             Item it = shown.get(i);
+            LinearLayout wrap = new LinearLayout(AppPickerActivity.this);
+            wrap.setOrientation(LinearLayout.VERTICAL);
+
+            if (i > 0) {
+                View line = new View(AppPickerActivity.this);
+                line.setBackgroundColor(Ui.LINE);
+                wrap.addView(line, lp(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
+            }
+
             LinearLayout row = new LinearLayout(AppPickerActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(20), dp(10), dp(20), dp(10));
+            row.setPadding(0, dp(11), 0, dp(11));
 
             ImageView icon = new ImageView(AppPickerActivity.this);
             icon.setImageDrawable(it.icon);
-            row.addView(icon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+            row.addView(icon, lp(dp(42), dp(42)));
 
+            LinearLayout nameBox = new LinearLayout(AppPickerActivity.this);
+            nameBox.setOrientation(LinearLayout.HORIZONTAL);
+            nameBox.setGravity(Gravity.CENTER_VERTICAL);
+            nameBox.setPadding(dp(14), 0, dp(8), 0);
             TextView name = new TextView(AppPickerActivity.this);
             name.setText(it.label);
-            name.setTextSize(16);
-            name.setTextColor(text);
-            name.setPadding(dp(14), 0, dp(8), 0);
-            row.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            name.setTextSize(15);
+            name.setTextColor(Ui.INK);
+            name.setSingleLine(true);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            nameBox.addView(name, lp(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (it.rec) {
+                TextView tag = new TextView(AppPickerActivity.this);
+                tag.setText("推荐");
+                tag.setTextSize(11);
+                tag.setTextColor(Ui.PRI);
+                tag.setTypeface(Typeface.DEFAULT_BOLD);
+                tag.setPadding(dp(7), dp(1), dp(7), dp(1));
+                tag.setBackground(Ui.round(Ui.PRI_SOFT, dp(6)));
+                LinearLayout.LayoutParams tg = lp(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+                tg.leftMargin = dp(8);
+                nameBox.addView(tag, tg);
+            }
+            LinearLayout.LayoutParams nlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
+            nlp.weight = 1f;
+            row.addView(nameBox, nlp);
 
-            CheckBox cb = new CheckBox(AppPickerActivity.this);
-            cb.setChecked(it.checked);
-            cb.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.PRI));
-            cb.setClickable(false);   // 点击整行来切换
-            cb.setFocusable(false);
-            row.addView(cb);
-            return row;
+            CheckDot dot = new CheckDot(AppPickerActivity.this);
+            dot.setOn(it.checked);
+            row.addView(dot, lp(dp(26), dp(26)));
+
+            wrap.addView(row, lp(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            return wrap;
         }
     }
 }

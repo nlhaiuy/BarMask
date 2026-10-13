@@ -61,7 +61,37 @@ public final class AutoMode {
             "com.duowan.kiwi",               // 虎牙
             "com.netease.cc",                // 网易CC
             "tv.twitch.android.app",         // Twitch
+            // —— 更多国内视频 ——
+            "com.sohu.sohuvideo",            // 搜狐视频
+            "com.baidu.haokan",              // 好看视频
+            "com.baidu.video",               // 百度视频
+            "com.letv.android.client",       // 乐视视频
+            "com.pplive.androidphone",       // PP视频
+            "com.cctv.yangshipin.app.androidp", // 央视频
+            "com.tencent.weishi",            // 微视
+            "com.ss.android.ugc.aweme.lite", // 抖音极速版
+            "com.ss.android.ugc.live",       // 抖音火山版
+            "com.kuaishou.nebula",           // 快手极速版
+            "com.tencent.qqlivepad",         // 腾讯视频 HD
+            "com.qiyi.video.pad",            // 爱奇艺 HD
+            // —— 海外 / 本地影音 ——
+            "com.disney.disneyplus",         // Disney+
+            "com.amazon.avod.thirdpartyclient", // Prime Video
+            "com.plexapp.android",           // Plex
+            "org.xbmc.kodi",                 // Kodi
+            "org.jellyfin.mobile",           // Jellyfin
+            "com.mb.android",                // Emby
+            "org.schabi.newpipe",            // NewPipe
+            "app.revanced.android.youtube",  // YouTube（ReVanced）
     };
+
+    private static Set<String> recommended;
+
+    /** 是不是“推荐的视频软件”（即默认白名单里的软件）。 */
+    public static boolean isRecommended(String pkg) {
+        if (recommended == null) recommended = new HashSet<>(Arrays.asList(DEFAULT_APPS));
+        return recommended.contains(pkg);
+    }
 
     private static String fg = "";
     private static Context appCtx;
