@@ -459,7 +459,7 @@ public class AppPickerActivity extends Activity {
             LinearLayout row = new LinearLayout(AppPickerActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(11), 0, dp(11));
+            row.setPadding(0, dp(8), 0, dp(8));
 
             ImageView icon = new ImageView(AppPickerActivity.this);
             icon.setImageDrawable(it.icon);

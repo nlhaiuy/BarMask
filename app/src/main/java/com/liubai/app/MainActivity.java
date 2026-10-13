@@ -92,8 +92,8 @@ public class MainActivity extends Activity {
         // ---- 固定在顶部（横屏时在左边）：标题 + 演示屏 + 微调 ----
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.VERTICAL);
-        if (land) top.setPadding(dp(24), dp(14), dp(12), dp(14));
-        else top.setPadding(dp(20), dp(24), dp(20), dp(16));
+        if (land) top.setPadding(dp(20), dp(14), dp(8), dp(14));
+        else top.setPadding(dp(20), dp(24), dp(20), dp(8));
         buildHeader(top);
         buildStage(top);
 
@@ -117,8 +117,8 @@ public class MainActivity extends Activity {
         sv.setVerticalScrollBarEnabled(false);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        if (land) col.setPadding(dp(12), dp(14), dp(24), dp(100));
-        else col.setPadding(dp(20), dp(6), dp(20), dp(128));
+        if (land) col.setPadding(dp(8), dp(14), dp(20), dp(84));
+        else col.setPadding(dp(20), dp(6), dp(20), dp(100));
         sv.addView(col, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -146,7 +146,7 @@ public class MainActivity extends Activity {
         Ui.card(card, 24);
         LinearLayout.LayoutParams clp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.topMargin = dp(14);
+        clp.topMargin = dp(10);
         col.addView(card, clp);
 
         buildModeRow(card);
@@ -165,8 +165,8 @@ public class MainActivity extends Activity {
         power.setOnClickListener(v -> toggle());
         FrameLayout.LayoutParams pwl;
         if (land) {
-            pwl = new FrameLayout.LayoutParams(rightW - dp(36), dp(54), Gravity.BOTTOM | Gravity.END);
-            pwl.setMargins(0, 0, dp(24), dp(14));
+            pwl = new FrameLayout.LayoutParams(rightW - dp(28), dp(54), Gravity.BOTTOM | Gravity.END);
+            pwl.setMargins(0, 0, dp(20), dp(14));
         } else {
             pwl = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(62), Gravity.BOTTOM);
@@ -362,7 +362,7 @@ public class MainActivity extends Activity {
         }
         LinearLayout s = new LinearLayout(this);
         s.setOrientation(LinearLayout.VERTICAL);
-        s.setPadding(0, dp(16), 0, dp(16));
+        s.setPadding(0, dp(18), 0, dp(14));   // 分段选择器自带 4dp 上下留白，下面少 4dp 才看着对称
         card.addView(s, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return s;
     }
@@ -370,7 +370,7 @@ public class MainActivity extends Activity {
     private LinearLayout.LayoutParams below() {
         LinearLayout.LayoutParams p = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        p.topMargin = dp(12);
+        p.topMargin = dp(14);
         return p;
     }
 
