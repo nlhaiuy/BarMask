@@ -175,6 +175,7 @@ public class MainActivity extends Activity {
         page.addView(power, pwl);
 
         setContentView(page);
+        Ui.noClip(page);
         updateUi(false);
         refreshAuto();
     }

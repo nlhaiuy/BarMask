@@ -223,6 +223,7 @@ public class AppPickerActivity extends Activity {
         page.addView(snack, snlp);
 
         setContentView(page);
+        Ui.noClip(page);
         updateCount();
 
         search.addTextChangedListener(new TextWatcher() {

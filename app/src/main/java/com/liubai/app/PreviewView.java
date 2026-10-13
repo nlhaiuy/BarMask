@@ -69,7 +69,7 @@ public class PreviewView extends View {
         cv.save();
         cv.translate(Ui.dp(c, PAD_X), Ui.dp(c, PAD_T));
         float sw = getWidth() - 2 * Ui.dp(c, PAD_X), sh = sw / aspect();
-        float scale = sw / (longPx / density);   // 演示屏上 1 个真实 px 对应多少
+        float scale = sw / longPx;               // 演示屏上 1 个真实 px 对应多少（dp 要先乘 density）
         float rad = Ui.dp(c, 18);
 
         // 屏幕本体 + 两层阴影：宽而淡的环境影 + 紧贴屏幕的接触影

@@ -64,6 +64,20 @@ final class Ui {
         return Math.max(0, (int) Math.floor((s[0] - s[1] * ratio) / 2f / s[2]));
     }
 
+    /**
+     * 让阴影不被父布局切掉：Android 默认会把子 View 的绘制裁在父布局（和它的内边距）里，
+     * 阴影一出界就变成一条直边。滚动容器 / 列表要保留裁剪，其余全部放开。
+     */
+    static void noClip(View v) {
+        if (!(v instanceof android.view.ViewGroup)) return;
+        android.view.ViewGroup g = (android.view.ViewGroup) v;
+        if (!(g instanceof android.widget.ScrollView) && !(g instanceof android.widget.AbsListView)) {
+            g.setClipChildren(false);
+            g.setClipToPadding(false);
+        }
+        for (int i = 0; i < g.getChildCount(); i++) noClip(g.getChildAt(i));
+    }
+
     static float sp(Context c, float v) {
         return v * c.getResources().getDisplayMetrics().scaledDensity;
     }
