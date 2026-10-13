@@ -410,7 +410,7 @@ public class AppPickerActivity extends Activity {
         @Override
         protected void onDraw(Canvas cv) {
             Context c = getContext();
-            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f - Ui.dp(c, 1.5f);
+            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f - Ui.dp(c, 6);   // 四周留出画阴影的空间
             float cx = w / 2f, cy = h / 2f;
             if (on) {
                 paint.setStyle(Paint.Style.FILL);
@@ -496,7 +496,7 @@ public class AppPickerActivity extends Activity {
 
             CheckDot dot = new CheckDot(AppPickerActivity.this);
             dot.setOn(it.checked);
-            row.addView(dot, lp(dp(26), dp(26)));
+            row.addView(dot, lp(dp(36), dp(36)));
 
             wrap.addView(row, lp(ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));

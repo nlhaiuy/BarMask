@@ -71,7 +71,15 @@ final class Ui {
     static void noClip(View v) {
         if (!(v instanceof android.view.ViewGroup)) return;
         android.view.ViewGroup g = (android.view.ViewGroup) v;
-        if (!(g instanceof android.widget.ScrollView) && !(g instanceof android.widget.AbsListView)) {
+        boolean holdsScroller = false;      // 直接装着滚动区的容器要继续裁剪，否则滚动内容会盖到外面
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View ch = g.getChildAt(i);
+            if (ch instanceof android.widget.ScrollView || ch instanceof android.widget.AbsListView) {
+                holdsScroller = true;
+            }
+        }
+        if (!holdsScroller && !(g instanceof android.widget.ScrollView)
+                && !(g instanceof android.widget.AbsListView)) {
             g.setClipChildren(false);
             g.setClipToPadding(false);
         }
