@@ -63,7 +63,7 @@ public class Segmented extends View {
 
     @Override
     protected void onMeasure(int w, int h) {
-        setMeasuredDimension(MeasureSpec.getSize(w), Math.round(Ui.dp(getContext(), 46)));
+        setMeasuredDimension(MeasureSpec.getSize(w), Math.round(Ui.dp(getContext(), 54)));
     }
 
     @Override
@@ -75,15 +75,16 @@ public class Segmented extends View {
         paint.setShader(null);
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Ui.CHIP);
-        rect.set(0, 0, w, h);
+        float vy = Ui.dp(c, 4);                    // 上下留空，滑块的阴影不被切
+        rect.set(0, vy, w, h - vy);
         cv.drawRoundRect(rect, Ui.dp(c, 14), Ui.dp(c, 14), paint);
 
         // 滑块
         float segW = (w - 2 * pad) / labels.length;
         float l = pad + pos * segW, r = pad + (pos + 1) * segW;
-        paint.setShader(new LinearGradient(l, pad, r, h - pad, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
-        paint.setShadowLayer(Ui.dp(c, 5), 0, Ui.dp(c, 2.5f), 0x664F7CFF);
-        rect.set(l, pad, r, h - pad);
+        paint.setShader(new LinearGradient(l, vy + pad, r, h - vy - pad, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+        paint.setShadowLayer(Ui.dp(c, 4), 0, Ui.dp(c, 2), 0x554F7CFF);
+        rect.set(l, vy + pad, r, h - vy - pad);
         cv.drawRoundRect(rect, Ui.dp(c, 11), Ui.dp(c, 11), paint);
         paint.clearShadowLayer();
         paint.setShader(null);

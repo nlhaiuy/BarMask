@@ -41,6 +41,29 @@ final class Ui {
         return v * c.getResources().getDisplayMetrics().density;
     }
 
+    /** 真实屏幕（不受小窗 / 分屏影响）：{长边px, 短边px, density}。 */
+    @SuppressWarnings("deprecation")
+    static float[] realScreen(Context c) {
+        try {
+            android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager)
+                    c.getSystemService(Context.DISPLAY_SERVICE);
+            android.util.DisplayMetrics m = new android.util.DisplayMetrics();
+            dm.getDisplay(android.view.Display.DEFAULT_DISPLAY).getRealMetrics(m);
+            return new float[]{Math.max(m.widthPixels, m.heightPixels),
+                    Math.min(m.widthPixels, m.heightPixels), m.density};
+        } catch (Exception e) {
+            android.util.DisplayMetrics m = c.getResources().getDisplayMetrics();
+            return new float[]{Math.max(m.widthPixels, m.heightPixels),
+                    Math.min(m.widthPixels, m.heightPixels), m.density};
+        }
+    }
+
+    /** 这个画幅下，横屏时每边黑边的宽度（dp）。微调往负方向最多减到它，再减就是 0 了。 */
+    static int baseBarDp(Context c, float ratio) {
+        float[] s = realScreen(c);
+        return Math.max(0, (int) Math.floor((s[0] - s[1] * ratio) / 2f / s[2]));
+    }
+
     static float sp(Context c, float v) {
         return v * c.getResources().getDisplayMetrics().scaledDensity;
     }

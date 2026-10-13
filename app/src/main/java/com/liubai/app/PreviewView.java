@@ -43,35 +43,42 @@ public class PreviewView extends View {
         anim.start();
     }
 
+    /** 为阴影留的空间（dp）：布局里要用同样大小的负边距把它抵消掉。 */
+    public static final int PAD_X = 12, PAD_T = 8, PAD_B = 22;
+
+    /** 用真实屏幕的比例，小窗 / 分屏时也和真正的遮罩一致。 */
     private float aspect() {
-        DisplayMetrics m = getResources().getDisplayMetrics();
-        float longPx = Math.max(m.widthPixels, m.heightPixels);
-        float shortPx = Math.min(m.widthPixels, m.heightPixels);
-        return Math.max(16f / 9f, Math.min(2.4f, longPx / shortPx));
+        float[] s = Ui.realScreen(getContext());
+        return Math.max(16f / 9f, Math.min(2.4f, s[0] / s[1]));
     }
 
     @Override
     protected void onMeasure(int w, int h) {
+        Context c = getContext();
         int width = MeasureSpec.getSize(w);
-        // 屏幕高度 + 下方给阴影留的一点空间
-        setMeasuredDimension(width, Math.round(width / aspect() + Ui.dp(getContext(), 10)));
+        float inner = width - 2 * Ui.dp(c, PAD_X);
+        setMeasuredDimension(width, Math.round(inner / aspect() + Ui.dp(c, PAD_T + PAD_B)));
     }
 
     @Override
     protected void onDraw(Canvas cv) {
         Context c = getContext();
-        DisplayMetrics m = c.getResources().getDisplayMetrics();
-        float density = m.density;
-        float longPx = Math.max(m.widthPixels, m.heightPixels);
-        float sw = getWidth(), sh = sw / aspect();
-        float scale = sw / (longPx / density);
+        float[] scr = Ui.realScreen(c);
+        float density = scr[2];
+        float longPx = scr[0];
+        cv.save();
+        cv.translate(Ui.dp(c, PAD_X), Ui.dp(c, PAD_T));
+        float sw = getWidth() - 2 * Ui.dp(c, PAD_X), sh = sw / aspect();
+        float scale = sw / (longPx / density);   // 演示屏上 1 个真实 px 对应多少
         float rad = Ui.dp(c, 18);
 
-        // 屏幕本体 + 向下一层柔和阴影
+        // 屏幕本体 + 两层阴影：宽而淡的环境影 + 紧贴屏幕的接触影
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Ui.EDGE);
-        paint.setShadowLayer(Ui.dp(c, 10), 0, Ui.dp(c, 6), 0x592B3042);
-        rect.set(Ui.dp(c, 2), 0, sw - Ui.dp(c, 2), sh);
+        paint.setShadowLayer(Ui.dp(c, 14), 0, Ui.dp(c, 7), 0x302B3A78);
+        rect.set(0, 0, sw, sh);
+        cv.drawRoundRect(rect, rad, rad, paint);
+        paint.setShadowLayer(Ui.dp(c, 3), 0, Ui.dp(c, 1.5f), 0x262B3042);
         cv.drawRoundRect(rect, rad, rad, paint);
         paint.clearShadowLayer();
 
@@ -139,5 +146,6 @@ public class PreviewView extends View {
         rect.set(Ui.dp(c, 0.5f), Ui.dp(c, 0.5f), sw - Ui.dp(c, 0.5f), sh - Ui.dp(c, 0.5f));
         cv.drawRoundRect(rect, rad, rad, paint);
         paint.setStyle(Paint.Style.FILL);
+        cv.restore();
     }
 }

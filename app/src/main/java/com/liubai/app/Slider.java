@@ -16,7 +16,8 @@ import android.view.View;
 public class Slider extends View {
     public interface OnChange { void onChange(int value, boolean fromUser); }
 
-    public static final int MIN = -100, MAX = 100;
+    public static final int MAX = 100;
+    private int min = -100;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
@@ -35,36 +36,48 @@ public class Slider extends View {
 
     public int getValue() { return value; }
 
+    public int getMin() { return min; }
+
+    /** 下限随黑边宽度变（再往负就没有意义了）。 */
+    public void setMin(int m) {
+        min = Math.min(-10, m);
+        value = clamp(value);
+        invalidate();
+    }
+
     public void setValue(int v) {
         value = clamp(v);
         invalidate();
     }
 
-    private static int clamp(int v) { return Math.max(MIN, Math.min(MAX, v)); }
+    private int clamp(int v) { return Math.max(min, Math.min(MAX, v)); }
 
     @Override
     protected void onMeasure(int w, int h) {
-        setMeasuredDimension(MeasureSpec.getSize(w), Math.round(Ui.dp(getContext(), 44)));
+        setMeasuredDimension(MeasureSpec.getSize(w), Math.round(Ui.dp(getContext(), 56)));
     }
 
     private float thumbR() { return Ui.dp(getContext(), 16); }
 
+    /** 两头留出滑块和阴影的位置，阴影不会被控件边界切掉。 */
+    private float inset() { return thumbR() + Ui.dp(getContext(), 10); }
+
     private float xFor(int v) {
-        float r = thumbR();
-        return r + (v - MIN) / (float) (MAX - MIN) * (getWidth() - 2 * r);
+        float r = inset();
+        return r + (v - min) / (float) (MAX - min) * (getWidth() - 2 * r);
     }
 
     private int valueAt(float x) {
-        float r = thumbR();
+        float r = inset();
         float t = (x - r) / Math.max(1f, getWidth() - 2 * r);
-        return clamp(Math.round(MIN + t * (MAX - MIN)));
+        return clamp(Math.round(min + t * (MAX - min)));
     }
 
     @Override
     protected void onDraw(Canvas cv) {
         Context c = getContext();
         float h = getHeight(), cy = h / 2f, half = Ui.dp(c, 2), x = xFor(value);
-        float left = thumbR(), right = getWidth() - thumbR();
+        float left = inset(), right = getWidth() - inset();
 
         // 轨道
         paint.setStyle(Paint.Style.FILL);
@@ -79,7 +92,7 @@ public class Slider extends View {
         paint.setShader(null);
 
         // 0 刻度
-        float mid = (left + right) / 2f;
+        float mid = xFor(0);
         paint.setColor(0xFFC9D5EE);
         rect.set(mid - Ui.dp(c, 1), cy - Ui.dp(c, 7), mid + Ui.dp(c, 1), cy + Ui.dp(c, 7));
         cv.drawRoundRect(rect, Ui.dp(c, 1), Ui.dp(c, 1), paint);
@@ -87,7 +100,7 @@ public class Slider extends View {
         // 滑块：白底 + 蓝色细环 + 柔和阴影，数值写在里面
         float r = thumbR() * (dragging ? 1.08f : 1f);
         paint.setColor(0xFFFFFFFF);
-        paint.setShadowLayer(Ui.dp(c, dragging ? 9 : 6), 0, Ui.dp(c, dragging ? 4 : 3), 0x664F7CFF);
+        paint.setShadowLayer(Ui.dp(c, dragging ? 8 : 6), 0, Ui.dp(c, dragging ? 3 : 2), 0x554F7CFF);
         cv.drawCircle(x, cy, r, paint);
         paint.clearShadowLayer();
         paint.setStyle(Paint.Style.STROKE);

@@ -223,8 +223,12 @@ public class MainActivity extends Activity {
 
         FrameLayout shot = new FrameLayout(this);
         preview = new PreviewView(this);
-        shot.addView(preview, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        // 预览控件四周留了画阴影的空间，用负边距抵消，屏幕本身仍和卡片内边距对齐
+        plp.setMargins(-dp(PreviewView.PAD_X), -dp(PreviewView.PAD_T),
+                -dp(PreviewView.PAD_X), -dp(PreviewView.PAD_B - 10));
+        shot.addView(preview, plp);
 
         resetBtn = new TextView(this);
         resetBtn.setText("↺");
@@ -254,7 +258,8 @@ public class MainActivity extends Activity {
 
         slider = new Slider(this);
         slider.setContentDescription("宽度微调");
-        int off = Math.max(Slider.MIN, Math.min(Slider.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
+        applyRange();
+        int off = Math.max(slider.getMin(), Math.min(Slider.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
         slider.setValue(off);
         showOffset(off, false);
         slider.setOnChange((v, user) -> {
@@ -394,6 +399,14 @@ public class MainActivity extends Activity {
         Segmented seg = new Segmented(this, new String[]{"16:9", "4:3"}, sel, RATIO_VALUES);
         seg.setOnSelect(i -> {
             sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[i]).apply();
+            applyRange();
+            int cur2 = sp.getInt(MaskService.KEY_OFFSET, 0);
+            if (cur2 < slider.getMin()) {      // 换画幅后黑边变窄，微调跟着收回到新的下限
+                sp.edit().putInt(MaskService.KEY_OFFSET, slider.getMin()).apply();
+                slider.setValue(slider.getMin());
+                showOffset(slider.getMin(), false);
+            }
+            slider.invalidate();
             changed();
         });
         s.addView(seg, below());
@@ -429,8 +442,14 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** 微调下限 = 当前画幅下一侧黑边的宽度：再往负，遮罩已经是 0 了，没有意义。 */
+    private void applyRange() {
+        float ratio = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
+        slider.setMin(-Ui.baseBarDp(this, ratio));
+    }
+
     private void setOffset(int v) {
-        v = Math.max(Slider.MIN, Math.min(Slider.MAX, v));
+        v = Math.max(slider.getMin(), Math.min(Slider.MAX, v));
         if (v == slider.getValue() && sp.getInt(MaskService.KEY_OFFSET, 0) == v) return;
         sp.edit().putInt(MaskService.KEY_OFFSET, v).apply();
         slider.setValue(v);
@@ -525,7 +544,7 @@ public class MainActivity extends Activity {
                     .setDuration(420).start();
         }
         if (vib != null && vib.hasVibrator()) {
-            vib.vibrate(VibrationEffect.createWaveform(new long[]{0, 12, 40, 12}, -1));
+            vib.vibrate(VibrationEffect.createWaveform(new long[]{0, 8, 40, 8}, -1));
         }
     }
 
@@ -544,12 +563,12 @@ public class MainActivity extends Activity {
      * 到 0 或者 ±100 时最明显，让人不用看也知道到了。
      */
     private void tick(int o) {
-        boolean edge = o == 0 || Math.abs(o) == Slider.MAX;
+        boolean edge = o == 0 || o == Slider.MAX || o == slider.getMin();
         boolean major = o % 10 == 0;
         if (vib != null && vib.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= 26 && vib.hasAmplitudeControl()) {
                 vib.vibrate(VibrationEffect.createOneShot(
-                        edge ? 16 : major ? 9 : 5, edge ? 110 : major ? 60 : 24));
+                        edge ? 10 : major ? 6 : 3, edge ? 70 : major ? 36 : 14));
                 return;
             }
             if (Build.VERSION.SDK_INT >= 29 && (edge || major)) {
