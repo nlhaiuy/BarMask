@@ -13,6 +13,7 @@ final class Ui {
     static final int BG = 0xFFF3F6FC;        // 页面底色
     static final int CARD = 0xFFFFFFFF;      // 卡片
     static final int INK = 0xFF1F2638;       // 主文字
+    static final int TITLE = 0xFF2A3A72;     // 页面大标题：深靛蓝，和演示画面、主色同一色系
     static final int DIM = 0xFF5F6A83;       // 次要文字（白底约 5.4:1，够清楚）
     static final int LINE = 0xFFE9EEF7;      // 细分隔线
     static final int CHIP = 0xFFEEF2FA;      // 控件底槽

@@ -118,7 +118,7 @@ public class AppPickerActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("白名单");
         title.setTextSize(28);
-        title.setTextColor(Ui.INK);
+        title.setTextColor(Ui.TITLE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setLetterSpacing(0.04f);
         title.setIncludeFontPadding(false);

@@ -190,7 +190,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("留白");
         title.setTextSize(land ? 28 : 34);
-        title.setTextColor(Ui.INK);
+        title.setTextColor(Ui.TITLE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setLetterSpacing(0.04f);
         title.setIncludeFontPadding(false);
@@ -503,7 +503,25 @@ public class MainActivity extends Activity {
     /** 白名单入口：只在白名单模式显示，位置不变所以界面不跳动。 */
     private void refreshAuto() {
         boolean whitelist = AutoMode.isEnabled(this);
-        appsLink.setText("白名单应用 " + installedSelectedCount() + " ›");
+        int n = installedSelectedCount();
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+        if (n == 0) {                     // 白名单模式下一个都没选 = 哪里都不显示，用橙色提醒
+            sb.append("未选择应用 ›");
+            sb.setSpan(new android.text.style.ForegroundColorSpan(0xFFD97706), 0, sb.length(),
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        } else {
+            sb.append("已选 ");
+            int a = sb.length();
+            sb.append(String.valueOf(n)).append(" 个应用 ›");
+            int blueEnd = a + String.valueOf(n).length();
+            sb.setSpan(new android.text.style.ForegroundColorSpan(Ui.PRI), a, blueEnd,
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.setSpan(new android.text.style.ForegroundColorSpan(Ui.PRI), sb.length() - 1, sb.length(),
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), a, blueEnd,
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        appsLink.setText(sb);
         appsLink.setEnabled(whitelist);
         appsLink.setClickable(whitelist);
         appsLink.animate().cancel();
