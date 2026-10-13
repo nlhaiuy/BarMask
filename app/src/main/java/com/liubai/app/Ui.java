@@ -65,14 +65,6 @@ final class Ui {
         return Math.max(0, (int) Math.floor((s[0] - s[1] * ratio) / 2f / s[2]));
     }
 
-    /** 给定画幅和微调(dp)时，一侧白边实际有多宽(dp)。 */
-    static int barDp(Context c, float ratio, int offsetDp) {
-        float[] s = realScreen(c);
-        float bar = (s[0] - s[1] * ratio) / 2f + offsetDp * s[2];
-        bar = Math.max(0f, Math.min(bar, s[0] / 2f));
-        return Math.round(bar / s[2]);
-    }
-
     /**
      * 让阴影不被父布局切掉：Android 默认会把子 View 的绘制裁在父布局（和它的内边距）里，
      * 阴影一出界就变成一条直边。滚动容器 / 列表要保留裁剪，其余全部放开。

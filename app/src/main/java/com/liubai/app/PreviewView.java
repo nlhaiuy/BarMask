@@ -110,7 +110,7 @@ public class PreviewView extends View {
         cv.drawPath(tri, paint);
 
         // 两侧遮罩：黑边 → 白边
-        int off = MaskService.offset(sp);
+        int off = sp.getInt(MaskService.KEY_OFFSET, 0);
         float bar = (sw - sh * ratio) / 2f + off * density * scale;
         bar = Math.max(0f, Math.min(bar, sw / 2f));
         paint.setColor(Ui.blend(Ui.EDGE, 0xFFFFFFFF, amount));
