@@ -87,8 +87,9 @@ public class Slider extends View {
 
         // 走过的部分
         paint.setShader(new LinearGradient(left, 0, right, 0, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
-        rect.set(left, cy - half, Math.max(left + 1, x), cy + half);
-        cv.drawRoundRect(rect, half, half, paint);
+        float zx = xFor(0);                       // 从 0 刻度往滑块方向填，0 的时候没有蓝色
+        rect.set(Math.min(zx, x), cy - half, Math.max(zx, x), cy + half);
+        if (rect.width() > 0.5f) cv.drawRoundRect(rect, half, half, paint);
         paint.setShader(null);
 
         // 0 刻度

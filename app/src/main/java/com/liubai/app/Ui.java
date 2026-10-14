@@ -87,6 +87,26 @@ final class Ui {
         for (int i = 0; i < g.getChildCount(); i++) noClip(g.getChildAt(i));
     }
 
+    /** 按下时轻轻缩一下、松手弹回：只做动画，不吃掉点击。 */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    static void press(View v, float scale) {
+        v.setOnTouchListener((view, e) -> {
+            switch (e.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(scale).scaleY(scale).setDuration(80).start();
+                    break;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1f).scaleY(1f).setDuration(160)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
+    }
+
     static float sp(Context c, float v) {
         return v * c.getResources().getDisplayMetrics().scaledDensity;
     }

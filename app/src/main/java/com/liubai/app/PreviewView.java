@@ -25,11 +25,14 @@ public class PreviewView extends View {
     private final SharedPreferences sp;
     private float amount; // 0 = 黑边，1 = 白边
     private ValueAnimator anim;
+    private float shownRatio;          // 正在显示的画幅（切换 16:9 / 4:3 时平滑过渡）
+    private ValueAnimator ratioAnim;
 
     public PreviewView(Context c) {
         super(c);
         sp = c.getSharedPreferences(MaskService.PREFS, Context.MODE_PRIVATE);
         amount = AutoMode.isMaster(c) ? 1f : 0f;
+        shownRatio = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
         setLayerType(LAYER_TYPE_SOFTWARE, null);   // 让屏幕下面的阴影在所有机型上都能画出来
     }
 
@@ -47,6 +50,18 @@ public class PreviewView extends View {
     public static final int PAD_X = 12, PAD_T = 8, PAD_B = 22;
 
     /** 用真实屏幕的比例，小窗 / 分屏时也和真正的遮罩一致。 */
+    /** 画幅改了：视频画面平滑地变宽 / 变窄，不再瞬间跳。 */
+    public void ratioChanged() {
+        float to = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
+        if (ratioAnim != null) ratioAnim.cancel();
+        if (!isLaidOut() || Math.abs(to - shownRatio) < 0.001f) { shownRatio = to; invalidate(); return; }
+        ratioAnim = ValueAnimator.ofFloat(shownRatio, to);
+        ratioAnim.setDuration(260);
+        ratioAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+        ratioAnim.addUpdateListener(a -> { shownRatio = (Float) a.getAnimatedValue(); invalidate(); });
+        ratioAnim.start();
+    }
+
     private float aspect() {
         float[] s = Ui.realScreen(getContext());
         return Math.max(16f / 9f, Math.min(2.4f, s[0] / s[1]));
@@ -90,7 +105,7 @@ public class PreviewView extends View {
         cv.drawRect(0, 0, sw, sh, paint);
 
         // 视频画面
-        float ratio = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
+        float ratio = shownRatio;
         float vw = Math.min(sw, sh * ratio);
         float vl = (sw - vw) / 2f;
         paint.setShader(new LinearGradient(vl, 0, vl + vw, sh,
@@ -133,9 +148,10 @@ public class PreviewView extends View {
         paint.setShader(new LinearGradient(0, 0, sw * 0.45f, sh * 0.75f, 0x2AFFFFFF, 0x00FFFFFF,
                 Shader.TileMode.CLAMP));
         cv.drawRect(0, 0, sw, sh, paint);
+        // 底部压暗只盖在两条白边之间，白边保持纯白
         paint.setShader(new LinearGradient(0, sh * 0.7f, 0, sh, 0x00141A32, 0x1A141A32,
                 Shader.TileMode.CLAMP));
-        cv.drawRect(0, sh * 0.7f, sw, sh, paint);
+        cv.drawRect(bar, sh * 0.7f, sw - bar, sh, paint);
         paint.setShader(null);
         cv.restore();
 

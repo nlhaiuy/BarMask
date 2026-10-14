@@ -246,6 +246,7 @@ public class MainActivity extends Activity {
         resetBtn.setAlpha(0f);
         resetBtn.setClickable(false);
         resetBtn.setOnClickListener(v -> setOffset(0));
+        Ui.press(resetBtn, 0.9f);
         FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(dp(44), dp(44),
                 Gravity.TOP | Gravity.END);
         rlp.setMargins(0, dp(4), dp(4), 0);
@@ -363,7 +364,7 @@ public class MainActivity extends Activity {
         }
         LinearLayout s = new LinearLayout(this);
         s.setOrientation(LinearLayout.VERTICAL);
-        s.setPadding(0, dp(18), 0, dp(14));   // 分段选择器自带 4dp 上下留白，下面少 4dp 才看着对称
+        s.setPadding(0, dp(16), 0, dp(12));   // 分段选择器自带 4dp 上下留白，下面少 4dp 才看着对称
         card.addView(s, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return s;
     }
@@ -379,6 +380,7 @@ public class MainActivity extends Activity {
         LinearLayout s = section(card, true);
         appsLink = link("");
         appsLink.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
+        Ui.press(appsLink, 0.94f);
         // 这一行至少 44dp 高，比文字大一圈都能点到；用负边距抵消，版面不变
         LinearLayout.LayoutParams lrp = lp(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -395,6 +397,7 @@ public class MainActivity extends Activity {
             AutoMode.evaluate(this);   // 切换后立刻按新模式显示 / 隐藏
             refreshAuto();
         });
+        Ui.press(seg, 0.985f);
         s.addView(seg, below());
     }
 
@@ -408,6 +411,7 @@ public class MainActivity extends Activity {
         Segmented seg = new Segmented(this, new String[]{"16:9", "4:3"}, sel, RATIO_VALUES);
         seg.setOnSelect(i -> {
             sp.edit().putFloat(MaskService.KEY_RATIO, RATIO_VALUES[i]).apply();
+            preview.ratioChanged();
             applyRange();
             int cur2 = sp.getInt(MaskService.KEY_OFFSET, 0);
             if (cur2 < slider.getMin()) {      // 换画幅后黑边变窄，微调跟着收回到新的下限
@@ -418,6 +422,7 @@ public class MainActivity extends Activity {
             slider.invalidate();
             changed();
         });
+        Ui.press(seg, 0.985f);
         s.addView(seg, below());
     }
 
@@ -431,6 +436,7 @@ public class MainActivity extends Activity {
             sp.edit().putInt(MaskService.KEY_LAYERS, STRENGTH_LAYERS[i]).apply();
             changed();
         });
+        Ui.press(seg, 0.985f);
         s.addView(seg, below());
     }
 
@@ -711,6 +717,7 @@ public class MainActivity extends Activity {
         go.setBackground(Ui.gradient(dp(20)));
         Ui.lift(go, 3, 0x404F7CFF, 0x884F7CFF);
         go.setOnClickListener(v -> launch(i));
+        Ui.press(go, 0.94f);
         LinearLayout.LayoutParams glp = lp(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         glp.leftMargin = dp(12);
@@ -743,6 +750,7 @@ public class MainActivity extends Activity {
             chip.setBackground(cb);
             Ui.lift(chip, 2, 0x337A5A12, 0x557A5A12);
             chip.setOnClickListener(v -> launch(i));
+            Ui.press(chip, 0.94f);
             LinearLayout.LayoutParams clp = lp(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             clp.leftMargin = dp(8);

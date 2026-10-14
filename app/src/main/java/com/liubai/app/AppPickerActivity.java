@@ -115,6 +115,7 @@ public class AppPickerActivity extends Activity {
         back.setBackground(bb);
         Ui.lift(back, 3, 0x264F7CFF, 0x404F7CFF);
         back.setOnClickListener(v -> finish());
+        Ui.press(back, 0.9f);
         bar.addView(back, lp(dp(40), dp(40)));
 
         TextView title = new TextView(this);
@@ -233,6 +234,8 @@ public class AppPickerActivity extends Activity {
             @Override public void onTextChanged(CharSequence s, int a, int c, int d) { }
             @Override public void afterTextChanged(Editable s) { refilter(); }
         });
+        Ui.press(recBtn, 0.96f);
+        Ui.press(clrBtn, 0.96f);
         recBtn.setOnClickListener(v -> {
             if (!recBtn.isEnabled()) return;
             final boolean[] before = snapshot();
@@ -295,7 +298,8 @@ public class AppPickerActivity extends Activity {
             list.setOnItemClickListener((p, v, pos, id) -> {
                 Item it = shown.get(pos);
                 it.checked = !it.checked;   // 只改状态，不重排，避免列表乱跳
-                adapter.notifyDataSetChanged();
+                Object tag = v.getTag();
+                if (tag instanceof Holder) ((Holder) tag).dot.setOn(it.checked, true);   // 圆点弹一下
                 save();
             });
             refilter();
@@ -330,6 +334,11 @@ public class AppPickerActivity extends Activity {
         save();
         refilter();
         list.setSelection(0);
+        // 重新排序后，各行依次淡入，不要生硬地跳
+        android.view.animation.AlphaAnimation fadeIn = new android.view.animation.AlphaAnimation(0f, 1f);
+        fadeIn.setDuration(220);
+        list.setLayoutAnimation(new android.view.animation.LayoutAnimationController(fadeIn, 0.05f));
+        list.startLayoutAnimation();
         list.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
         showSnack(msg, () -> {
             for (int i = 0; i < before.length && i < all.size(); i++) all.get(i).checked = before[i];
@@ -395,18 +404,31 @@ public class AppPickerActivity extends Activity {
     private static class CheckDot extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path tick = new Path();
+        private final Path part = new Path();
         private boolean on;
+        private float p;                       // 0 = 没选，1 = 选中（带一点回弹）
+        private android.animation.ValueAnimator va;
 
         CheckDot(Context c) {
             super(c);
             setLayerType(LAYER_TYPE_SOFTWARE, null);
         }
 
-        void setOn(boolean v) {
-            if (v != on) {
-                on = v;
+        void setOn(boolean v, boolean animate) {
+            on = v;
+            float to = v ? 1f : 0f;
+            if (va != null) va.cancel();
+            if (!animate || !isLaidOut()) {
+                p = to;
                 invalidate();
+                return;
             }
+            va = android.animation.ValueAnimator.ofFloat(p, to);
+            va.setDuration(v ? 280 : 160);
+            va.setInterpolator(v ? new android.view.animation.OvershootInterpolator(2.4f)
+                    : new android.view.animation.DecelerateInterpolator());
+            va.addUpdateListener(a -> { p = (Float) a.getAnimatedValue(); invalidate(); });
+            va.start();
         }
 
         @Override
@@ -414,30 +436,50 @@ public class AppPickerActivity extends Activity {
             Context c = getContext();
             float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f - Ui.dp(c, 6);   // 四周留出画阴影的空间
             float cx = w / 2f, cy = h / 2f;
-            if (on) {
-                paint.setStyle(Paint.Style.FILL);
-                paint.setShader(new LinearGradient(0, 0, w, h, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
-                paint.setShadowLayer(Ui.dp(c, 4), 0, Ui.dp(c, 2), 0x884F7CFF);
-                cv.drawCircle(cx, cy, r, paint);
-                paint.clearShadowLayer();
+            float f = Math.max(0f, Math.min(1f, p));
+
+            // 没选的浅灰细圈：选中时淡出
+            if (f < 0.999f) {
                 paint.setShader(null);
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(Ui.dp(c, 2.2f));
-                paint.setStrokeCap(Paint.Cap.ROUND);
-                paint.setStrokeJoin(Paint.Join.ROUND);
-                paint.setColor(0xFFFFFFFF);
-                float u = r / 12f * 1.0f;   // 24 格坐标 → 实际尺寸
-                tick.reset();
-                tick.moveTo(cx - 5.2f * u, cy + 0.2f * u);
-                tick.lineTo(cx - 1.4f * u, cy + 4.0f * u);
-                tick.lineTo(cx + 5.6f * u, cy - 3.8f * u);
-                cv.drawPath(tick, paint);
-            } else {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(Ui.dp(c, 1.5f));
                 paint.setColor(0xFFC5D0E6);
+                paint.setAlpha(Math.round(255 * (1f - f)));
                 cv.drawCircle(cx, cy, r, paint);
+                paint.setAlpha(255);
             }
+            if (p <= 0.01f) return;
+
+            // 选中的蓝色圆：从小弹到位
+            float s = 0.7f + 0.3f * p;
+            cv.save();
+            cv.scale(s, s, cx, cy);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setShader(new LinearGradient(0, 0, w, h, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+            paint.setAlpha(Math.round(255 * f));
+            paint.setShadowLayer(Ui.dp(c, 4), 0, Ui.dp(c, 2), ((int) (0x88 * f) << 24) | 0x4F7CFF);
+            cv.drawCircle(cx, cy, r, paint);
+            paint.clearShadowLayer();
+            paint.setShader(null);
+            paint.setAlpha(255);
+
+            // 对勾：像被画出来一样
+            float u = r / 12f;
+            tick.reset();
+            tick.moveTo(cx - 5.2f * u, cy + 0.2f * u);
+            tick.lineTo(cx - 1.4f * u, cy + 4.0f * u);
+            tick.lineTo(cx + 5.6f * u, cy - 3.8f * u);
+            android.graphics.PathMeasure pm = new android.graphics.PathMeasure(tick, false);
+            float draw = Math.max(0f, Math.min(1f, (p - 0.2f) / 0.8f)) * pm.getLength();
+            part.reset();
+            pm.getSegment(0, draw, part, true);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Ui.dp(c, 2.2f));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setColor(0xFFFFFFFF);
+            cv.drawPath(part, paint);
+            cv.restore();
         }
     }
 
@@ -521,7 +563,7 @@ public class AppPickerActivity extends Activity {
             h.line.setVisibility(i > 0 ? View.VISIBLE : View.GONE);
             h.name.setText(it.label);
             h.tag.setVisibility(it.rec ? View.VISIBLE : View.GONE);
-            h.dot.setOn(it.checked);
+            h.dot.setOn(it.checked, false);
             bindIcon(h.icon, it);
             return v;
         }
