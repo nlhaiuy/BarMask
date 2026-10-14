@@ -58,6 +58,8 @@ public class MainActivity extends Activity {
     private PowerButton power;
     private Slider slider;
     private final Handler repeat = new Handler(Looper.getMainLooper());
+    private final Handler pollH = new Handler(Looper.getMainLooper());
+    private String lastPermSig = "";
 
     // 权限：0 悬浮窗、1 通知、2 后台运行、3 无障碍
     private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
@@ -473,6 +475,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         repeat.removeCallbacksAndMessages(null);
+        pollH.removeCallbacks(poll);
     }
 
     @Override
@@ -481,11 +484,21 @@ public class MainActivity extends Activity {
         if (awaitingA11y) {
             awaitingA11y = false;
             // 从无障碍设置页回来还没开：多半是“无障碍”被系统置灰了
-            if (applicable(3) && missing(3)) showRestrictedHelp();
+            if (applicable(3) && !AutoMode.isAccessibilityEnabled(this)) showRestrictedHelp();
         }
         updateUi(false);
         refreshAuto();
+        pollH.removeCallbacks(poll);
+        pollH.postDelayed(poll, 1000);   // 刚启动时无障碍可能还没连上，稍后会再查
     }
+
+    /** 页面在前台时每秒刷新一次状态标签（白名单下切换软件后“待命中 / 生效中”会跟着变）。 */
+    private final Runnable poll = new Runnable() {
+        @Override public void run() {
+            updateUi(false);
+            pollH.postDelayed(this, 1000);
+        }
+    };
 
     // ---------------- 状态刷新 ----------------
 
@@ -494,11 +507,15 @@ public class MainActivity extends Activity {
         boolean on = AutoMode.isMaster(this);
         power.setOn(on, animate);
         preview.setOn(on);
-        statusTv.setText(on ? "已开启" : "已关闭");
+        boolean standby = on && AutoMode.isEnabled(this) && !MaskService.running;  // 白名单里，还没切到白名单软件
+        statusTv.setText(!on ? "已关闭" : standby ? "待命中" : "生效中");
         statusTv.setTextColor(on ? Ui.INK : Ui.DIM);
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.OVAL);
-        if (on) {
+        if (on && standby) {
+            g.setColor(Ui.PRI);
+            g.setStroke(dp(2), 0x554F7CFF);
+        } else if (on) {
             g.setColor(Ui.GREEN);
             g.setStroke(dp(2), 0x552EB67D);
         } else {
@@ -628,8 +645,17 @@ public class MainActivity extends Activity {
                 return !((PowerManager) getSystemService(POWER_SERVICE))
                         .isIgnoringBatteryOptimizations(getPackageName());
             default:
-                return !AutoMode.isAccessibilityEnabled(this);
+                return !AutoMode.isAccessibilityEnabled(this) || !a11yConnected();
         }
+    }
+
+    /** 开关开了，但系统还没把服务连上（刚装完更新、被省电杀掉后常见）。 */
+    private boolean a11yConnected() {
+        return AutoAccessibilityService.connected;
+    }
+
+    private boolean a11yStale() {
+        return AutoMode.isAccessibilityEnabled(this) && !a11yConnected();
     }
 
     /** 必需的：悬浮窗；白名单模式下还有无障碍。其余是可选的。 */
@@ -638,6 +664,7 @@ public class MainActivity extends Activity {
     }
 
     private String permDesc(int i) {
+        if (i == 3 && a11yStale()) return "已开启但没连上：进去把它关掉再打开一次就好";
         return i == 0 ? "在视频上方显示遮罩" : "白名单模式下，识别当前打开的视频软件";
     }
 
@@ -655,11 +682,15 @@ public class MainActivity extends Activity {
     /** 只列出还没开的权限；回到页面时刷新，开齐后整块收起。 */
     private void refreshPerms() {
         if (permBox == null) return;
-        permBox.removeAllViews();
         List<Integer> req = new ArrayList<>(), opt = new ArrayList<>();
         for (int i = 0; i < PERM_NAMES.length; i++) {
             if (applicable(i) && missing(i)) (required(i) ? req : opt).add(i);
         }
+        // 内容没变就不重建，免得每秒刷新时把正在点的“开启”按钮刷掉
+        String sig = req + "|" + opt + "|" + a11yStale();
+        if (sig.equals(lastPermSig) && permBox.getChildCount() > 0) return;
+        lastPermSig = sig;
+        permBox.removeAllViews();
         if (req.isEmpty() && opt.isEmpty()) {
             permBox.setVisibility(View.GONE);
             return;
@@ -686,7 +717,7 @@ public class MainActivity extends Activity {
         LinearLayout text = new LinearLayout(this);
         text.setOrientation(LinearLayout.VERTICAL);
         TextView name = new TextView(this);
-        name.setText(PERM_NAMES[i]);
+        name.setText(i == 3 && a11yStale() ? "无障碍（未连接）" : PERM_NAMES[i]);
         name.setTextSize(14);
         name.setTextColor(Ui.WARN_TX);
         name.setTypeface(Typeface.DEFAULT_BOLD);
