@@ -54,6 +54,8 @@ public class AppPickerActivity extends Activity {
         CharSequence label;
         String key;      // 小写的名称 + 包名，用来搜索
         Drawable icon;
+        ResolveInfo ri;          // 图标按需再加载
+        boolean loading;
         boolean checked;
         boolean rec;     // 是不是推荐的视频软件
     }
@@ -280,7 +282,7 @@ public class AppPickerActivity extends Activity {
             it.pkg = pkg;
             it.label = ri.loadLabel(pm);
             it.key = (it.label.toString() + " " + pkg).toLowerCase(Locale.ROOT);
-            it.icon = ri.loadIcon(pm);
+            it.ri = ri;
             it.checked = sel.contains(pkg);
             it.rec = AutoMode.isRecommended(pkg);
             map.put(pkg, it);
@@ -439,68 +441,118 @@ public class AppPickerActivity extends Activity {
         }
     }
 
+    private static final java.util.concurrent.ExecutorService ICONS =
+            java.util.concurrent.Executors.newFixedThreadPool(3);
+
+    private class Holder {
+        View line;
+        ImageView icon;
+        TextView name, tag;
+        CheckDot dot;
+    }
+
     private class Adapter extends BaseAdapter {
         @Override public int getCount() { return shown.size(); }
         @Override public Object getItem(int i) { return shown.get(i); }
         @Override public long getItemId(int i) { return i; }
 
-        @Override
-        public View getView(int i, View convert, ViewGroup parent) {
-            Item it = shown.get(i);
+        private View create(Holder h) {
             LinearLayout wrap = new LinearLayout(AppPickerActivity.this);
             wrap.setOrientation(LinearLayout.VERTICAL);
 
-            if (i > 0) {
-                View line = new View(AppPickerActivity.this);
-                line.setBackgroundColor(Ui.LINE);
-                wrap.addView(line, lp(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
-            }
+            h.line = new View(AppPickerActivity.this);
+            h.line.setBackgroundColor(Ui.LINE);
+            wrap.addView(h.line, lp(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
 
             LinearLayout row = new LinearLayout(AppPickerActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(0, dp(8), 0, dp(8));
 
-            ImageView icon = new ImageView(AppPickerActivity.this);
-            icon.setImageDrawable(it.icon);
-            row.addView(icon, lp(dp(42), dp(42)));
+            h.icon = new ImageView(AppPickerActivity.this);
+            row.addView(h.icon, lp(dp(42), dp(42)));
 
             LinearLayout nameBox = new LinearLayout(AppPickerActivity.this);
             nameBox.setOrientation(LinearLayout.HORIZONTAL);
             nameBox.setGravity(Gravity.CENTER_VERTICAL);
             nameBox.setPadding(dp(14), 0, dp(8), 0);
-            TextView name = new TextView(AppPickerActivity.this);
-            name.setText(it.label);
-            name.setTextSize(15);
-            name.setTextColor(Ui.INK);
-            name.setSingleLine(true);
-            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            nameBox.addView(name, lp(ViewGroup.LayoutParams.WRAP_CONTENT,
+            h.name = new TextView(AppPickerActivity.this);
+            h.name.setTextSize(15);
+            h.name.setTextColor(Ui.INK);
+            h.name.setSingleLine(true);
+            h.name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            nameBox.addView(h.name, lp(ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
-            if (it.rec) {
-                TextView tag = new TextView(AppPickerActivity.this);
-                tag.setText("推荐");
-                tag.setTextSize(11);
-                tag.setTextColor(Ui.PRI);
-                tag.setTypeface(Typeface.DEFAULT_BOLD);
-                tag.setPadding(dp(7), dp(1), dp(7), dp(1));
-                tag.setBackground(Ui.round(Ui.PRI_SOFT, dp(6)));
-                LinearLayout.LayoutParams tg = lp(ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT);
-                tg.leftMargin = dp(8);
-                nameBox.addView(tag, tg);
-            }
+            h.tag = new TextView(AppPickerActivity.this);
+            h.tag.setText("推荐");
+            h.tag.setTextSize(11);
+            h.tag.setTextColor(Ui.PRI);
+            h.tag.setTypeface(Typeface.DEFAULT_BOLD);
+            h.tag.setPadding(dp(7), dp(1), dp(7), dp(1));
+            h.tag.setBackground(Ui.round(Ui.PRI_SOFT, dp(6)));
+            LinearLayout.LayoutParams tg = lp(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            tg.leftMargin = dp(8);
+            nameBox.addView(h.tag, tg);
             LinearLayout.LayoutParams nlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
             nlp.weight = 1f;
             row.addView(nameBox, nlp);
 
-            CheckDot dot = new CheckDot(AppPickerActivity.this);
-            dot.setOn(it.checked);
-            row.addView(dot, lp(dp(36), dp(36)));
+            h.dot = new CheckDot(AppPickerActivity.this);
+            row.addView(h.dot, lp(dp(36), dp(36)));
 
             wrap.addView(row, lp(ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
+            wrap.setTag(h);
             return wrap;
         }
+
+        @Override
+        public View getView(int i, View convert, ViewGroup parent) {
+            Item it = shown.get(i);
+            View v = convert;
+            Holder h;
+            if (v == null) {
+                h = new Holder();
+                v = create(h);
+            } else {
+                h = (Holder) v.getTag();
+            }
+            h.line.setVisibility(i > 0 ? View.VISIBLE : View.GONE);
+            h.name.setText(it.label);
+            h.tag.setVisibility(it.rec ? View.VISIBLE : View.GONE);
+            h.dot.setOn(it.checked);
+            bindIcon(h.icon, it);
+            return v;
+        }
+    }
+
+    /** 图标慢慢补：先给一个浅色占位，后台加载好再换上，列表不用等所有图标。 */
+    private void bindIcon(final ImageView iv, final Item it) {
+        iv.setTag(it.pkg);
+        if (it.icon != null) {
+            iv.setBackground(null);
+            iv.setImageDrawable(it.icon);
+            return;
+        }
+        iv.setImageDrawable(null);
+        iv.setBackground(Ui.round(Ui.CHIP, dp(11)));
+        if (it.loading) return;
+        it.loading = true;
+        final PackageManager pm = getPackageManager();
+        ICONS.execute(() -> {
+            Drawable d;
+            try { d = it.ri.loadIcon(pm); } catch (Exception e) { d = pm.getDefaultActivityIcon(); }
+            final Drawable icon = d;
+            it.icon = icon;
+            runOnUiThread(() -> {
+                if (it.pkg.equals(iv.getTag())) {
+                    iv.setBackground(null);
+                    iv.setImageDrawable(icon);
+                } else if (adapter != null) {
+                    adapter.notifyDataSetChanged();
+                }
+            });
+        });
     }
 }

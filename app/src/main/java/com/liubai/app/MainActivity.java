@@ -233,21 +233,22 @@ public class MainActivity extends Activity {
 
         resetBtn = new TextView(this);
         resetBtn.setText("↺");
-        resetBtn.setTextSize(16);
-        resetBtn.setTextColor(Ui.INK);
+        resetBtn.setTextSize(19);
+        resetBtn.setTextColor(0xFFFFFFFF);
+        resetBtn.setTypeface(Typeface.DEFAULT_BOLD);
         resetBtn.setGravity(Gravity.CENTER);
         resetBtn.setContentDescription("归零");
-        GradientDrawable rb = new GradientDrawable();
+        // 蓝色实心圆：在白边、黑边上都看得清；视觉 36dp，外面再留 4dp，点击范围 44dp
+        GradientDrawable rb = Ui.gradient(dp(18));
         rb.setShape(GradientDrawable.OVAL);
-        rb.setColor(0xEBFFFFFF);
-        resetBtn.setBackground(rb);
-        Ui.lift(resetBtn, 3, 0x331F2638, 0x551F2638);
+        resetBtn.setBackground(new android.graphics.drawable.InsetDrawable(rb, dp(4)));
+        Ui.lift(resetBtn, 4, 0x554F7CFF, 0x884F7CFF);
         resetBtn.setAlpha(0f);
         resetBtn.setClickable(false);
         resetBtn.setOnClickListener(v -> setOffset(0));
-        FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(dp(32), dp(32),
+        FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(dp(44), dp(44),
                 Gravity.TOP | Gravity.END);
-        rlp.setMargins(0, dp(8), dp(8), 0);
+        rlp.setMargins(0, dp(4), dp(4), 0);
         shot.addView(resetBtn, rlp);
         stage.addView(shot, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -333,7 +334,7 @@ public class MainActivity extends Activity {
         t.setText(text);
         t.setTextSize(13);
         t.setTextColor(Ui.DIM);
-        t.setPadding(dp(12), dp(4), 0, dp(4));
+        t.setPadding(dp(16), dp(4), dp(2), dp(4));
         return t;
     }
 
@@ -378,7 +379,14 @@ public class MainActivity extends Activity {
         LinearLayout s = section(card, true);
         appsLink = link("");
         appsLink.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
-        s.addView(labelRow("生效范围", appsLink));
+        // 这一行至少 44dp 高，比文字大一圈都能点到；用负边距抵消，版面不变
+        LinearLayout.LayoutParams lrp = lp(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        lrp.topMargin = -dp(10);
+        lrp.bottomMargin = -dp(10);
+        LinearLayout lr = labelRow("生效范围", appsLink);
+        lr.setMinimumHeight(dp(44));
+        s.addView(lr, lrp);
 
         Segmented seg = new Segmented(this, new String[]{"白名单", "全局"},
                 AutoMode.isEnabled(this) ? 0 : 1);

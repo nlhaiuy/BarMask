@@ -51,9 +51,14 @@ public class MaskService extends Service {
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(
-                CHANNEL_ID, "留白", NotificationManager.IMPORTANCE_LOW));
+                CHANNEL_ID, "遮罩状态", NotificationManager.IMPORTANCE_LOW));
         Notification n = new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("留白已开启")
+                .setContentTitle("遮罩已开启")
+                .setContentText("点按进入设置")
+                .setContentIntent(android.app.PendingIntent.getActivity(this, 0,
+                        new Intent(this, MainActivity.class)
+                                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                        android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT))
                 .setSmallIcon(R.drawable.ic_tile)
                 .setOngoing(true)
                 .build();
@@ -118,8 +123,9 @@ public class MaskService extends Service {
             return;
         }
 
-        // 层数、屏幕高度都没变：只改宽度，原有的悬浮窗直接调整，不拆不建
-        if (bars.size() == layers * 2 && builtH == h && builtLayers == layers) {
+        // 屏幕高度没变：宽度原地改；层数变了只加 / 减多出来的那几层，原来的不拆
+        // （标准 ⇄ 加强 切换时才不会闪一下黑边）
+        if (!bars.isEmpty() && builtH == h) {
             if (builtW != bar) {
                 for (View v : bars) {
                     try {
@@ -129,6 +135,26 @@ public class MaskService extends Service {
                     } catch (Exception ignored) { }
                 }
                 builtW = bar;
+            }
+            int have = bars.size() / 2;
+            if (have < layers) {
+                java.util.List<View> added = new java.util.ArrayList<>();
+                for (int i = have; i < layers; i++) {
+                    View l = addBar(Gravity.TOP | Gravity.START, bar, h);
+                    View r = addBar(Gravity.TOP | Gravity.END, bar, h);
+                    bars.add(l);
+                    bars.add(r);
+                    added.add(l);
+                    added.add(r);
+                }
+                builtLayers = layers;
+                fade(added, 0f, 1f, FADE_IN_MS, false);
+            } else if (have > layers) {
+                java.util.List<View> gone = new java.util.ArrayList<>(
+                        bars.subList(layers * 2, bars.size()));
+                for (int i = bars.size() - 1; i >= layers * 2; i--) bars.remove(i);
+                builtLayers = layers;
+                fade(gone, 1f, 0f, FADE_OUT_MS, true);
             }
             return;
         }
