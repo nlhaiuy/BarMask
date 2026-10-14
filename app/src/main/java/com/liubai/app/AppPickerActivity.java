@@ -334,10 +334,6 @@ public class AppPickerActivity extends Activity {
         save();
         refilter();
         list.setSelection(0);
-        // 重新排序：整个列表瞬间淡一点再淡回来，不留空白帧，看不出卡顿
-        list.animate().cancel();
-        list.setAlpha(0.45f);
-        list.animate().alpha(1f).setDuration(200).start();
         list.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
         showSnack(msg, () -> {
             for (int i = 0; i < before.length && i < all.size(); i++) all.get(i).checked = before[i];
