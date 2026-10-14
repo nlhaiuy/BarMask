@@ -334,11 +334,10 @@ public class AppPickerActivity extends Activity {
         save();
         refilter();
         list.setSelection(0);
-        // 重新排序后，各行依次淡入，不要生硬地跳
-        android.view.animation.AlphaAnimation fadeIn = new android.view.animation.AlphaAnimation(0f, 1f);
-        fadeIn.setDuration(220);
-        list.setLayoutAnimation(new android.view.animation.LayoutAnimationController(fadeIn, 0.05f));
-        list.startLayoutAnimation();
+        // 重新排序：整个列表瞬间淡一点再淡回来，不留空白帧，看不出卡顿
+        list.animate().cancel();
+        list.setAlpha(0.45f);
+        list.animate().alpha(1f).setDuration(200).start();
         list.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
         showSnack(msg, () -> {
             for (int i = 0; i < before.length && i < all.size(); i++) all.get(i).checked = before[i];
