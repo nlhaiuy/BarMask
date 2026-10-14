@@ -25,8 +25,6 @@ public class PreviewView extends View {
     private final SharedPreferences sp;
     private float amount; // 0 = 黑边，1 = 白边
     private ValueAnimator anim;
-    private float solid = 1f;          // 白边的不透明度：标准 94%，加强 100%（只是演示上的示意）
-    private ValueAnimator solidAnim;
     private float shownRatio;          // 正在显示的画幅（切换 16:9 / 4:3 时平滑过渡）
     private ValueAnimator ratioAnim;
 
@@ -34,24 +32,8 @@ public class PreviewView extends View {
         super(c);
         sp = c.getSharedPreferences(MaskService.PREFS, Context.MODE_PRIVATE);
         amount = AutoMode.isMaster(c) ? 1f : 0f;
-        solid = solidFor();
         shownRatio = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
         setLayerType(LAYER_TYPE_SOFTWARE, null);   // 让屏幕下面的阴影在所有机型上都能画出来
-    }
-
-    private float solidFor() {
-        return sp.getInt(MaskService.KEY_LAYERS, MaskService.DEFAULT_LAYERS) >= 2 ? 1f : 0.94f;
-    }
-
-    /** 标准 / 加强切换：白边在 94% 和纯白之间平滑过渡。 */
-    public void strengthChanged() {
-        float to = solidFor();
-        if (solidAnim != null) solidAnim.cancel();
-        if (!isLaidOut()) { solid = to; invalidate(); return; }
-        solidAnim = ValueAnimator.ofFloat(solid, to);
-        solidAnim.setDuration(240);
-        solidAnim.addUpdateListener(a -> { solid = (Float) a.getAnimatedValue(); invalidate(); });
-        solidAnim.start();
     }
 
     public void setOn(boolean on) {
@@ -146,7 +128,7 @@ public class PreviewView extends View {
         int off = sp.getInt(MaskService.KEY_OFFSET, 0);
         float bar = (sw - sh * ratio) / 2f + off * density * scale;
         bar = Math.max(0f, Math.min(bar, sw / 2f));
-        paint.setColor(Ui.blend(Ui.EDGE, 0xFFFFFFFF, amount * solid));
+        paint.setColor(Ui.blend(Ui.EDGE, 0xFFFFFFFF, amount));
         cv.drawRect(0, 0, bar, sh, paint);
         cv.drawRect(sw - bar, 0, sw, sh, paint);
 

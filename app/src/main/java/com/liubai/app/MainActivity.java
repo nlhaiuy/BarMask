@@ -434,7 +434,6 @@ public class MainActivity extends Activity {
         Segmented seg = new Segmented(this, new String[]{"标准", "加强"}, curLayers >= 2 ? 1 : 0);
         seg.setOnSelect(i -> {
             sp.edit().putInt(MaskService.KEY_LAYERS, STRENGTH_LAYERS[i]).apply();
-            preview.strengthChanged();
             changed();
         });
         Ui.press(seg, 0.985f);
