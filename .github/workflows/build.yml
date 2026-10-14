@@ -2,8 +2,6 @@ name: Build APK
 on:
   push:
   workflow_dispatch:
-permissions:
-  contents: write   # 发布固定下载链接的 Release 需要
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,13 +26,3 @@ jobs:
         with:
           name: Liubai-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-      - name: 发布最新版（固定下载链接）
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp app/build/outputs/apk/debug/app-debug.apk Liubai.apk
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest Liubai.apk --latest \
-            --title "留白 最新版" \
-            --notes "自动构建，对应提交 ${{ github.sha }}"

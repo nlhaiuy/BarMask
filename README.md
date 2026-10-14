@@ -4,7 +4,7 @@
 
 ## 构建
 - Android Studio 直接打开本目录，Run 即可；或命令行 `gradle assembleDebug`（需要 JDK 17 + Android SDK）。
-- 没有环境：把本目录推到 GitHub，Actions 会自动构建。最新版固定下载地址：https://github.com/nlhaiuy/Liubai/releases/download/latest/Liubai.apk（每次推送到 main 自动更新）。
+- 没有环境：把本目录推到 GitHub，Actions 会自动构建，在 Artifacts 里下载 `app-debug.apk`。
 
 ## 使用
 1. 打开 App，点底部“开启遮罩”，按提示授予“显示在其他应用上层”权限。
