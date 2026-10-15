@@ -6,7 +6,9 @@ import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.util.TypedValue;
 import android.view.View;
+import android.widget.LinearLayout;
 
 /** 留白的视觉常量：浅蓝白底、白色卡片、一抹蓝色，没有大面积的深色。 */
 final class Ui {
@@ -40,6 +42,24 @@ final class Ui {
 
     static float dp(Context c, float v) {
         return v * c.getResources().getDisplayMetrics().density;
+    }
+
+    /** dp 转 px，四舍五入成整数（布局参数用）。 */
+    static int px(Context c, float v) {
+        return Math.round(dp(c, v));
+    }
+
+    /** 竖向 / 横向 LinearLayout 里的子项参数。 */
+    static LinearLayout.LayoutParams lp(int w, int h) {
+        return new LinearLayout.LayoutParams(w, h);
+    }
+
+    /**
+     * 自绘控件用 Paint.setShadowLayer 画阴影：Android 10 以前的硬件加速画布上它不可靠，
+     * 只有这些旧系统才退回软件图层；Android 10+ 走硬件加速，拖动时不再每帧由 CPU 重绘。
+     */
+    static void softwareIfNeeded(View v) {
+        if (Build.VERSION.SDK_INT < 29) v.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
     }
 
     /** 真实屏幕（不受小窗 / 分屏影响）：{长边px, 短边px, density}。 */
@@ -108,7 +128,8 @@ final class Ui {
     }
 
     static float sp(Context c, float v) {
-        return v * c.getResources().getDisplayMetrics().scaledDensity;
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, v,
+                c.getResources().getDisplayMetrics());
     }
 
     static GradientDrawable round(int color, float radiusPx) {
@@ -139,6 +160,24 @@ final class Ui {
     static void card(View v, float radiusDp) {
         v.setBackground(round(CARD, dp(v.getContext(), radiusDp)));
         lift(v, 6, 0x294F7CFF, 0x544F7CFF);
+    }
+
+    /** 文字里把数字那一段染成主蓝并加粗（多语言时数字位置不固定，所以按内容查找）。 */
+    static android.text.SpannableString highlightNumber(String full, String num, boolean arrowToo) {
+        android.text.SpannableString s = new android.text.SpannableString(full);
+        int a = full.indexOf(num);
+        if (a >= 0) {
+            int b = a + num.length();
+            s.setSpan(new android.text.style.ForegroundColorSpan(PRI), a, b,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            s.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), a, b,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        if (arrowToo && full.length() > 0) {
+            s.setSpan(new android.text.style.ForegroundColorSpan(PRI), full.length() - 1,
+                    full.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return s;
     }
 
     /** 浅色页面：状态栏、导航栏跟随底色，图标用深色。 */

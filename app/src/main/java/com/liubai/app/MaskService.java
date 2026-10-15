@@ -3,6 +3,7 @@ package com.liubai.app;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
@@ -10,20 +11,26 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.content.res.Configuration;
-import android.graphics.Color;
-import android.graphics.PixelFormat;
+import android.graphics.drawable.Icon;
 import android.hardware.display.DisplayManager;
-import android.animation.ValueAnimator;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.service.quicksettings.TileService;
 import android.util.DisplayMetrics;
+import android.view.Choreographer;
 import android.view.Display;
-import android.view.Gravity;
-import android.view.View;
 import android.view.WindowManager;
 
-/** 在屏幕左右两侧各盖一块白色悬浮窗，遮住横屏视频两边的黑边。 */
+/**
+ * 在屏幕左右两侧各盖一块白色悬浮窗，遮住横屏视频两边的黑边。
+ *
+ * 标准：普通悬浮窗，每侧 1 层。
+ * 加强：优先用无障碍服务自己的悬浮窗（Android 12+ 对普通悬浮窗的穿透触摸有 0.8 的透明度上限，
+ *       叠 3 层才够实；无障碍窗口是受信任窗口，单层就是纯白）。
+ *       无障碍没开 / 没连上时，退回普通悬浮窗叠 3 层。
+ */
 public class MaskService extends Service {
     public static final String PREFS = "mask_prefs";
     public static final String KEY_RATIO = "ratio";   // 视频宽高比，默认 16/9
@@ -33,32 +40,57 @@ public class MaskService extends Service {
     public static final int DEFAULT_LAYERS = 1;
     public static final int MAX_LAYERS = 6;
 
+    /**
+     * 加强模式在无障碍窗口里每侧叠几层。
+     * 如果实机上看加强时边缘还隐约透出一点黑，把它改成 2 即可（仍然比 3 层少一个窗口）。
+     */
+    static final int A11Y_LAYERS = 1;
+
     private static final String CHANNEL_ID = "mask";
     public static boolean running = false;
     /** 正在运行的服务：设置页拖动微调时直接调它，不用每一格都重新启动服务。 */
     private static MaskService instance;
 
-    private static final long FADE_IN_MS = 180, FADE_OUT_MS = 160;
+    private static final int APP = 0, A11Y = 1;
 
     private WindowManager wm;
-    private final java.util.List<View> bars = new java.util.ArrayList<>();
-    private int builtW, builtH, builtLayers;    // 当前这批遮罩是按什么尺寸建的
+    private MaskOverlay appOverlay;
+    private MaskOverlay a11yOverlay;
+    private AutoAccessibilityService a11yOwner;
+    private int active = -1;                           // 现在由哪一组在显示
+    private final Runnable[] pendingHide = new Runnable[2];
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // 拖动微调时一帧里可能来好几次更新：合并成每帧最多算一次
+    private boolean framePending;
+    private final Choreographer.FrameCallback frameCb = t -> {
+        framePending = false;
+        update();
+    };
 
     @Override
     public void onCreate() {
         super.onCreate();
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        appOverlay = new MaskOverlay(this, wm, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(
-                CHANNEL_ID, "遮罩状态", NotificationManager.IMPORTANCE_LOW));
+                CHANNEL_ID, getString(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW));
+        PendingIntent open = PendingIntent.getActivity(this, 0,
+                new Intent(this, MainActivity.class)
+                        .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent off = PendingIntent.getBroadcast(this, 1,
+                new Intent(this, MaskActionReceiver.class).setAction(MaskActionReceiver.ACTION_OFF),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("遮罩已开启")
-                .setContentText("点按进入设置")
-                .setContentIntent(android.app.PendingIntent.getActivity(this, 0,
-                        new Intent(this, MainActivity.class)
-                                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                        android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT))
+                .setContentTitle(getString(R.string.notif_title))
+                .setContentText(getString(R.string.notif_text))
+                .setContentIntent(open)
+                .addAction(new Notification.Action.Builder(
+                        Icon.createWithResource(this, R.drawable.ic_tile),
+                        getString(R.string.notif_action_off), off).build())
                 .setSmallIcon(R.drawable.ic_tile)
                 .setOngoing(true)
                 .build();
@@ -76,8 +108,14 @@ public class MaskService extends Service {
     public static boolean refresh() {
         MaskService s = instance;
         if (s == null) return false;
-        s.update();
+        s.scheduleUpdate();
         return true;
+    }
+
+    private void scheduleUpdate() {
+        if (framePending) return;
+        framePending = true;
+        Choreographer.getInstance().postFrameCallback(frameCb);
     }
 
     private void refreshTile() {
@@ -89,6 +127,12 @@ public class MaskService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // intent 为空 = 进程被系统杀掉后重启的服务。此时记不得前台是哪个软件，
+        // 白名单模式下如果直接显示，遮罩会盖到所有软件上；先按当前状态判断一次。
+        if (intent == null && !AutoMode.shouldShowNow(this)) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         update();
         return START_STICKY;
     }
@@ -107,7 +151,7 @@ public class MaskService extends Service {
         d.getRealMetrics(m);
         int w = m.widthPixels, h = m.heightPixels;
         if (w <= h) {            // 竖屏不需要遮罩
-            removeViews(false);
+            hideAll(false);
             return;
         }
 
@@ -119,129 +163,73 @@ public class MaskService extends Service {
         int bar = Math.round((w - h * ratio) / 2f) + offsetPx;
         bar = Math.max(0, Math.min(bar, w / 2));
         if (bar == 0) {
-            removeViews(false);
+            hideAll(false);
             return;
         }
 
-        // 屏幕高度没变：宽度原地改；层数变了只加 / 减多出来的那几层，原来的不拆
-        // （标准 ⇄ 加强 切换时才不会闪一下黑边）
-        if (!bars.isEmpty() && builtH == h) {
-            if (builtW != bar) {
-                for (View v : bars) {
-                    try {
-                        WindowManager.LayoutParams lp = (WindowManager.LayoutParams) v.getLayoutParams();
-                        lp.width = bar;
-                        wm.updateViewLayout(v, lp);
-                    } catch (Exception ignored) { }
-                }
-                builtW = bar;
-            }
-            int have = bars.size() / 2;
-            if (have < layers) {
-                java.util.List<View> added = new java.util.ArrayList<>();
-                for (int i = have; i < layers; i++) {
-                    View l = addBar(Gravity.TOP | Gravity.START, bar, h);
-                    View r = addBar(Gravity.TOP | Gravity.END, bar, h);
-                    bars.add(l);
-                    bars.add(r);
-                    added.add(l);
-                    added.add(r);
-                }
-                builtLayers = layers;
-                fade(added, 0f, 1f, FADE_IN_MS, false);
-            } else if (have > layers) {
-                java.util.List<View> gone = new java.util.ArrayList<>(
-                        bars.subList(layers * 2, bars.size()));
-                for (int i = bars.size() - 1; i >= layers * 2; i--) bars.remove(i);
-                builtLayers = layers;
-                fade(gone, 1f, 0f, FADE_OUT_MS, true);
-            }
-            return;
+        MaskOverlay a11y = layers >= 2 ? a11yOverlayOrNull() : null;
+        if (a11y != null) {
+            active = A11Y;
+            a11y.show(bar, h, A11Y_LAYERS);
+            retire(APP, appOverlay);
+        } else {
+            active = APP;
+            appOverlay.show(bar, h, layers);
+            if (a11yOverlay != null) retire(A11Y, a11yOverlay);
         }
+    }
 
-        removeViews(false);
-        for (int i = 0; i < layers; i++) {
-            bars.add(addBar(Gravity.TOP | Gravity.START, bar, h));
-            bars.add(addBar(Gravity.TOP | Gravity.END, bar, h));
+    /** 无障碍服务连着时，返回它名下的悬浮窗组；没连着返回 null（并收掉旧的）。 */
+    private MaskOverlay a11yOverlayOrNull() {
+        AutoAccessibilityService svc = AutoAccessibilityService.get();
+        if (svc == null) {
+            if (a11yOverlay != null) {
+                a11yOverlay.hide(false);
+                a11yOverlay = null;
+                a11yOwner = null;
+            }
+            return null;
         }
-        builtW = bar;
-        builtH = h;
-        builtLayers = layers;
-        fade(new java.util.ArrayList<>(bars), 0f, 1f, FADE_IN_MS, false);
+        if (a11yOverlay == null || svc != a11yOwner) {
+            if (a11yOverlay != null) a11yOverlay.hide(false);
+            WindowManager awm = (WindowManager) svc.getSystemService(Context.WINDOW_SERVICE);
+            a11yOverlay = new MaskOverlay(svc, awm,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
+            a11yOwner = svc;
+        }
+        return a11yOverlay;
     }
 
     /**
-     * 整体淡入 / 淡出：用窗口自身的透明度，不改变悬浮窗的像素格式（所以遮得还是一样实）。
-     * 每个窗口一帧一帧地更新，总共约 0.2 秒。
+     * 换了一组窗口：等新的一组淡入完成后再收掉旧的，
+     * 这样中间不会有一瞬间两边都没遮实、露出黑边。
      */
-    private void fade(final java.util.List<View> views, float from, float to, long ms,
-                      final boolean removeAtEnd) {
-        final WindowManager manager = wm;
-        ValueAnimator a = ValueAnimator.ofFloat(from, to);
-        a.setDuration(ms);
-        a.addUpdateListener(an -> {
-            float alpha = (Float) an.getAnimatedValue();
-            for (View v : views) {
-                try {
-                    WindowManager.LayoutParams lp = (WindowManager.LayoutParams) v.getLayoutParams();
-                    if (lp == null) continue;
-                    lp.alpha = alpha;
-                    manager.updateViewLayout(v, lp);
-                } catch (Exception ignored) { }
-            }
-        });
-        if (removeAtEnd) {
-            a.addListener(new android.animation.AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(android.animation.Animator animation) {
-                    for (View v : views) {
-                        try { manager.removeView(v); } catch (Exception ignored) { }
-                    }
-                }
-            });
-        }
-        a.start();
+    private void retire(final int idx, final MaskOverlay old) {
+        if (!old.isShown() || pendingHide[idx] != null) return;
+        pendingHide[idx] = () -> {
+            pendingHide[idx] = null;
+            if (active != idx) old.hide(false);
+        };
+        handler.postDelayed(pendingHide[idx], MaskOverlay.FADE_IN_MS + 40);
     }
 
-    private View addBar(int gravity, int width, int height) {
-        View v = new View(this);
-        v.setBackgroundColor(Color.WHITE);
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                width, height,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.OPAQUE);
-        lp.gravity = gravity;
-        lp.alpha = 0f;
-        lp.x = 0;
-        lp.y = 0;
-        lp.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        wm.addView(v, lp);
-        return v;
-    }
-
-    /** 去掉全部遮罩；animate 为 true 时先淡出再去掉（只用在整个服务关闭时）。 */
-    private void removeViews(boolean animate) {
-        if (bars.isEmpty()) return;
-        if (animate) {
-            fade(new java.util.ArrayList<>(bars), 1f, 0f, FADE_OUT_MS, true);
-        } else {
-            for (View v : bars) {
-                try { wm.removeView(v); } catch (Exception ignored) { }
+    private void hideAll(boolean animate) {
+        active = -1;
+        for (int i = 0; i < pendingHide.length; i++) {
+            if (pendingHide[i] != null) {
+                handler.removeCallbacks(pendingHide[i]);
+                pendingHide[i] = null;
             }
         }
-        bars.clear();
-        builtW = builtH = builtLayers = 0;
+        appOverlay.hide(animate);
+        if (a11yOverlay != null) a11yOverlay.hide(animate);
     }
 
     @Override
     public void onDestroy() {
-        removeViews(true);
+        Choreographer.getInstance().removeFrameCallback(frameCb);
+        framePending = false;
+        hideAll(true);
         running = false;
         if (instance == this) instance = null;
         refreshTile();

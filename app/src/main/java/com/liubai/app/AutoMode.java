@@ -6,12 +6,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.service.quicksettings.TileService;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -128,10 +130,27 @@ public final class AutoMode {
         return prefs(c).contains(KEY_APPS);
     }
 
+    /** 缓存的已选名单：窗口每切一次都要判断，不能每次都从 SharedPreferences 里复制一份。 */
+    private static volatile Set<String> selectedCache;
+
+    /** 当前勾选的软件（只读；没自定义过就是默认白名单）。 */
     public static Set<String> selectedApps(Context c) {
-        Set<String> s = prefs(c).getStringSet(KEY_APPS, null);
-        if (s == null) return new HashSet<>(Arrays.asList(DEFAULT_APPS));
-        return new HashSet<>(s);
+        Set<String> s = selectedCache;
+        if (s == null) {
+            Set<String> saved = prefs(c).getStringSet(KEY_APPS, null);
+            s = Collections.unmodifiableSet(saved == null
+                    ? new HashSet<>(Arrays.asList(DEFAULT_APPS))
+                    : new HashSet<>(saved));
+            selectedCache = s;
+        }
+        return s;
+    }
+
+    /** 保存勾选的软件，并更新缓存。 */
+    public static void setSelectedApps(Context c, Set<String> apps) {
+        Set<String> copy = new HashSet<>(apps);
+        prefs(c).edit().putStringSet(KEY_APPS, copy).apply();
+        selectedCache = Collections.unmodifiableSet(copy);
     }
 
     public static boolean isAccessibilityEnabled(Context c) {
@@ -180,6 +199,12 @@ public final class AutoMode {
         if (desired != MaskService.running) apply(desired);
     }
 
+    /** 现在该不该显示（不会去开 / 关服务）：服务被系统杀掉后重启时用它先判断一次。 */
+    public static boolean shouldShowNow(Context c) {
+        appCtx = c.getApplicationContext();
+        return shouldShow();
+    }
+
     private static boolean shouldShow() {
         if (!isMaster(appCtx)) return false;        // 总开关关：全部关闭
         if (!isEnabled(appCtx)) return true;        // 白名单模式关：全局显示
@@ -211,13 +236,24 @@ public final class AutoMode {
         }
     }
 
+    private static Set<String> imeCache;
+    private static long imeStamp;
+
+    /** 输入法列表要跨进程查询，而窗口每切一次就判断一次：缓存 30 秒，别每次都查。 */
     private static boolean isIme(Context c, String pkg) {
-        try {
-            InputMethodManager imm = (InputMethodManager) c.getSystemService(Context.INPUT_METHOD_SERVICE);
-            for (InputMethodInfo info : imm.getEnabledInputMethodList()) {
-                if (info.getPackageName().equals(pkg)) return true;
-            }
-        } catch (Exception ignored) { }
-        return false;
+        long now = SystemClock.uptimeMillis();
+        if (imeCache == null || now - imeStamp > 30_000L) {
+            Set<String> s = new HashSet<>();
+            try {
+                InputMethodManager imm =
+                        (InputMethodManager) c.getSystemService(Context.INPUT_METHOD_SERVICE);
+                for (InputMethodInfo info : imm.getEnabledInputMethodList()) {
+                    s.add(info.getPackageName());
+                }
+            } catch (Exception ignored) { }
+            imeCache = s;
+            imeStamp = now;
+        }
+        return imeCache.contains(pkg);
     }
 }

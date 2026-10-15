@@ -22,9 +22,17 @@ public class AutoAccessibilityService extends AccessibilityService {
     };
     private boolean receiverRegistered = false;
 
+    /** 已连接的服务：MaskService 的“加强”模式要用它名下的悬浮窗。 */
+    private static AutoAccessibilityService instance;
+
+    static AutoAccessibilityService get() {
+        return instance;
+    }
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        instance = this;
 
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_SCREEN_OFF);
@@ -33,6 +41,7 @@ public class AutoAccessibilityService extends AccessibilityService {
         registerReceiver(screenReceiver, f);
         receiverRegistered = true;
         AutoMode.evaluate(this);
+        MaskService.refresh();   // 正在显示“加强”的话，换成无障碍窗口
 
         SharedPreferences sp = getSharedPreferences(MaskService.PREFS, MODE_PRIVATE);
         if (sp.getBoolean(KEY_RETURN, false)) {
@@ -55,7 +64,22 @@ public class AutoAccessibilityService extends AccessibilityService {
     public void onInterrupt() { }
 
     @Override
+    public boolean onUnbind(Intent intent) {
+        release();
+        return super.onUnbind(intent);
+    }
+
+    /** 服务断开：它名下的悬浮窗会被系统收走，让遮罩服务退回普通悬浮窗。 */
+    private void release() {
+        if (instance == this) {
+            instance = null;
+            MaskService.refresh();
+        }
+    }
+
+    @Override
     public void onDestroy() {
+        release();
         if (receiverRegistered) {
             try {
                 unregisterReceiver(screenReceiver);

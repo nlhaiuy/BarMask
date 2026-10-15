@@ -3,7 +3,6 @@ package com.liubai.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Canvas;
@@ -18,11 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
-import android.text.SpannableString;
-import android.text.Spanned;
 import android.text.TextWatcher;
-import android.text.style.ForegroundColorSpan;
-import android.text.style.StyleSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,6 +29,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.text.CollationKey;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,6 +38,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static com.liubai.app.Ui.lp;
 
 /**
  * 白名单：选择“在哪些软件里自动开启留白”，支持搜索，可同时选多个。
@@ -53,6 +51,7 @@ public class AppPickerActivity extends Activity {
         String pkg;
         CharSequence label;
         String key;      // 小写的名称 + 包名，用来搜索
+        CollationKey sortKey;    // 名称的排序键：加载时算好，搜索时不用每次再做中文排序比较
         Drawable icon;
         ResolveInfo ri;          // 图标按需再加载
         boolean loading;
@@ -70,20 +69,15 @@ public class AppPickerActivity extends Activity {
     private TextView snackMsg, snackUndo;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable hideSnack;
-    private float density;
+    private final Runnable refilterRun = this::refilter;   // 搜索框输入时稍等一下再过滤
 
     private int dp(float v) {
-        return Math.round(v * density);
-    }
-
-    private LinearLayout.LayoutParams lp(int w, int h) {
-        return new LinearLayout.LayoutParams(w, h);
+        return Ui.px(this, v);
     }
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        density = getResources().getDisplayMetrics().density;
         Ui.lightWindow(this);
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
@@ -108,7 +102,7 @@ public class AppPickerActivity extends Activity {
         ImageView back = new ImageView(this);
         back.setImageResource(R.drawable.ic_back);
         back.setScaleType(ImageView.ScaleType.CENTER);
-        back.setContentDescription("返回");
+        back.setContentDescription(getString(R.string.back_desc));
         GradientDrawable bb = new GradientDrawable();
         bb.setShape(GradientDrawable.OVAL);
         bb.setColor(Ui.CARD);
@@ -119,7 +113,7 @@ public class AppPickerActivity extends Activity {
         bar.addView(back, lp(dp(40), dp(40)));
 
         TextView title = new TextView(this);
-        title.setText("白名单");
+        title.setText(R.string.picker_title);
         title.setTextSize(28);
         title.setTextColor(Ui.TITLE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -133,6 +127,7 @@ public class AppPickerActivity extends Activity {
         countTv = new TextView(this);
         countTv.setTextSize(13);
         countTv.setTextColor(Ui.DIM);
+        countTv.setFontFeatureSettings("tnum");   // 等宽数字：勾选时数字宽度不抖
         countTv.setPadding(dp(12), dp(6), dp(12), dp(6));
         countTv.setBackground(Ui.round(Ui.CARD, dp(20)));
         Ui.lift(countTv, 3, 0x264F7CFF, 0x404F7CFF);
@@ -150,7 +145,7 @@ public class AppPickerActivity extends Activity {
         mag.setImageResource(R.drawable.ic_search);
         sbox.addView(mag, lp(dp(20), dp(20)));
         search = new EditText(this);
-        search.setHint("搜索应用");
+        search.setHint(R.string.picker_search_hint);
         search.setSingleLine(true);
         search.setTextSize(15);
         search.setTextColor(Ui.INK);
@@ -167,8 +162,8 @@ public class AppPickerActivity extends Activity {
         // ---- 快捷操作 ----
         LinearLayout acts = new LinearLayout(this);
         acts.setOrientation(LinearLayout.HORIZONTAL);
-        recBtn = actionButton("勾选推荐应用", true);
-        clrBtn = actionButton("取消全部勾选", false);
+        recBtn = actionButton(getString(R.string.picker_select_recommended), true);
+        clrBtn = actionButton(getString(R.string.picker_clear_all), false);
         LinearLayout.LayoutParams a1 = lp(0, dp(42));
         a1.weight = 1f;
         a1.rightMargin = dp(5);
@@ -212,7 +207,7 @@ public class AppPickerActivity extends Activity {
         snackMsg.setTextColor(0xFFFFFFFF);
         snack.addView(snackMsg);
         snackUndo = new TextView(this);
-        snackUndo.setText("撤销");
+        snackUndo.setText(R.string.undo);
         snackUndo.setTextSize(13);
         snackUndo.setTextColor(0xFFA9BEFF);
         snackUndo.setTypeface(Typeface.DEFAULT_BOLD);
@@ -232,7 +227,11 @@ public class AppPickerActivity extends Activity {
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int c, int d) { }
             @Override public void onTextChanged(CharSequence s, int a, int c, int d) { }
-            @Override public void afterTextChanged(Editable s) { refilter(); }
+            @Override public void afterTextChanged(Editable s) {
+                // 连续输入时合并成一次过滤，输入完停 90 毫秒再刷新列表
+                handler.removeCallbacks(refilterRun);
+                handler.postDelayed(refilterRun, 90);
+            }
         });
         Ui.press(recBtn, 0.96f);
         Ui.press(clrBtn, 0.96f);
@@ -240,13 +239,13 @@ public class AppPickerActivity extends Activity {
             if (!recBtn.isEnabled()) return;
             final boolean[] before = snapshot();
             for (Item it : all) if (it.rec) it.checked = true;
-            changedAll("已勾选推荐的视频应用", before);
+            changedAll(getString(R.string.picker_snack_recommended), before);
         });
         clrBtn.setOnClickListener(v -> {
             if (!clrBtn.isEnabled()) return;
             final boolean[] before = snapshot();
             for (Item it : all) it.checked = false;
-            changedAll("已取消全部勾选", before);
+            changedAll(getString(R.string.picker_snack_cleared), before);
         });
 
         new Thread(this::load).start();
@@ -277,6 +276,7 @@ public class AppPickerActivity extends Activity {
         Intent main = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> ris = pm.queryIntentActivities(main, 0);
         Set<String> sel = AutoMode.selectedApps(this);
+        Collator collator = Collator.getInstance(Locale.CHINA);
         Map<String, Item> map = new HashMap<>();
         for (ResolveInfo ri : ris) {
             String pkg = ri.activityInfo.packageName;
@@ -285,6 +285,7 @@ public class AppPickerActivity extends Activity {
             it.pkg = pkg;
             it.label = ri.loadLabel(pm);
             it.key = (it.label.toString() + " " + pkg).toLowerCase(Locale.ROOT);
+            it.sortKey = collator.getCollationKey(it.label.toString());
             it.ri = ri;
             it.checked = sel.contains(pkg);
             it.rec = AutoMode.isRecommended(pkg);
@@ -313,11 +314,10 @@ public class AppPickerActivity extends Activity {
         for (Item it : all) {
             if (q.isEmpty() || it.key.contains(q)) shown.add(it);
         }
-        Collator col = Collator.getInstance(Locale.CHINA);
         shown.sort((a, c) -> {
             if (a.checked != c.checked) return a.checked ? -1 : 1;
             if (a.rec != c.rec) return a.rec ? -1 : 1;
-            return col.compare(a.label.toString(), c.label.toString());
+            return a.sortKey.compareTo(c.sortKey);
         });
         if (adapter != null) adapter.notifyDataSetChanged();
         updateCount();
@@ -368,8 +368,8 @@ public class AppPickerActivity extends Activity {
     private void save() {
         Set<String> s = new HashSet<>();
         for (Item it : all) if (it.checked) s.add(it.pkg);
-        SharedPreferences sp = getSharedPreferences(MaskService.PREFS, Context.MODE_PRIVATE);
-        sp.edit().putStringSet(AutoMode.KEY_APPS, s).apply();
+        AutoMode.setSelectedApps(this, s);
+        AutoMode.evaluate(this);   // 名单变了：当前前台软件被取消 / 勾上后，遮罩马上跟着显示 / 隐藏
         updateCount();
     }
 
@@ -381,10 +381,7 @@ public class AppPickerActivity extends Activity {
             if (it.rec && !it.checked) recLeft = true;
         }
         String num = String.valueOf(n);
-        SpannableString s = new SpannableString("已选 " + num + " 个");
-        s.setSpan(new ForegroundColorSpan(Ui.PRI), 3, 3 + num.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        s.setSpan(new StyleSpan(Typeface.BOLD), 3, 3 + num.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        countTv.setText(s);
+        countTv.setText(Ui.highlightNumber(getString(R.string.picker_count, num), num, false));
         setActive(recBtn, recLeft);     // 推荐的都勾上了就不用再点
         setActive(clrBtn, n > 0);
     }
@@ -400,17 +397,35 @@ public class AppPickerActivity extends Activity {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path tick = new Path();
         private final Path part = new Path();
-        private boolean on;
+        private final android.graphics.PathMeasure measure = new android.graphics.PathMeasure();
         private float p;                       // 0 = 没选，1 = 选中（带一点回弹）
         private android.animation.ValueAnimator va;
+        // 尺寸固定后算好、反复用：圆的位置和半径、蓝色渐变、对勾路径
+        private float cx, cy, r, tickLen;
+        private Shader fillShader;
 
         CheckDot(Context c) {
             super(c);
-            setLayerType(LAYER_TYPE_SOFTWARE, null);
+            Ui.softwareIfNeeded(this);
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int ow, int oh) {
+            super.onSizeChanged(w, h, ow, oh);
+            r = Math.min(w, h) / 2f - Ui.dp(getContext(), 6);   // 四周留出画阴影的空间
+            cx = w / 2f;
+            cy = h / 2f;
+            fillShader = new LinearGradient(0, 0, w, h, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP);
+            float u = r / 12f;
+            tick.reset();
+            tick.moveTo(cx - 5.2f * u, cy + 0.2f * u);
+            tick.lineTo(cx - 1.4f * u, cy + 4.0f * u);
+            tick.lineTo(cx + 5.6f * u, cy - 3.8f * u);
+            measure.setPath(tick, false);
+            tickLen = measure.getLength();
         }
 
         void setOn(boolean v, boolean animate) {
-            on = v;
             float to = v ? 1f : 0f;
             if (va != null) va.cancel();
             if (!animate || !isLaidOut()) {
@@ -429,8 +444,6 @@ public class AppPickerActivity extends Activity {
         @Override
         protected void onDraw(Canvas cv) {
             Context c = getContext();
-            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f - Ui.dp(c, 6);   // 四周留出画阴影的空间
-            float cx = w / 2f, cy = h / 2f;
             float f = Math.max(0f, Math.min(1f, p));
 
             // 没选的浅灰细圈：选中时淡出
@@ -450,7 +463,7 @@ public class AppPickerActivity extends Activity {
             cv.save();
             cv.scale(s, s, cx, cy);
             paint.setStyle(Paint.Style.FILL);
-            paint.setShader(new LinearGradient(0, 0, w, h, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+            paint.setShader(fillShader);
             paint.setAlpha(Math.round(255 * f));
             paint.setShadowLayer(Ui.dp(c, 4), 0, Ui.dp(c, 2), ((int) (0x88 * f) << 24) | 0x4F7CFF);
             cv.drawCircle(cx, cy, r, paint);
@@ -459,15 +472,9 @@ public class AppPickerActivity extends Activity {
             paint.setAlpha(255);
 
             // 对勾：像被画出来一样
-            float u = r / 12f;
-            tick.reset();
-            tick.moveTo(cx - 5.2f * u, cy + 0.2f * u);
-            tick.lineTo(cx - 1.4f * u, cy + 4.0f * u);
-            tick.lineTo(cx + 5.6f * u, cy - 3.8f * u);
-            android.graphics.PathMeasure pm = new android.graphics.PathMeasure(tick, false);
-            float draw = Math.max(0f, Math.min(1f, (p - 0.2f) / 0.8f)) * pm.getLength();
+            float draw = Math.max(0f, Math.min(1f, (p - 0.2f) / 0.8f)) * tickLen;
             part.reset();
-            pm.getSegment(0, draw, part, true);
+            measure.getSegment(0, draw, part, true);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(Ui.dp(c, 2.2f));
             paint.setStrokeCap(Paint.Cap.ROUND);
@@ -521,7 +528,7 @@ public class AppPickerActivity extends Activity {
             nameBox.addView(h.name, lp(ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
             h.tag = new TextView(AppPickerActivity.this);
-            h.tag.setText("推荐");
+            h.tag.setText(R.string.recommended_tag);
             h.tag.setTextSize(11);
             h.tag.setTextColor(Ui.PRI);
             h.tag.setTypeface(Typeface.DEFAULT_BOLD);

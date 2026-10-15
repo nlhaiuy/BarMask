@@ -7,8 +7,10 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.DecelerateInterpolator;
 
 /**
@@ -18,6 +20,9 @@ import android.view.animation.DecelerateInterpolator;
 public class Segmented extends View {
     public interface OnSelect { void onSelect(int index); }
 
+    /** 读屏时每一段对应的自定义操作的编号起点（必须带高位，才不会和系统自带的操作冲突）。 */
+    private static final int ACTION_BASE = 0x7E010000;
+
     private final String[] labels;
     private final float[] glyphs;      // 可为 null
     private int sel;
@@ -26,6 +31,7 @@ public class Segmented extends View {
     private final RectF rect = new RectF();
     private ValueAnimator anim;
     private OnSelect cb;
+    private Shader thumbShader;        // 滑块渐变：按“一段”的大小建一次，画的时候平移
 
     public Segmented(Context c, String[] labels, int sel) {
         this(c, labels, sel, null);
@@ -39,7 +45,7 @@ public class Segmented extends View {
         this.pos = sel;
         paint.setTextAlign(Paint.Align.CENTER);
         setClickable(true);
-        setLayerType(LAYER_TYPE_SOFTWARE, null);   // 让滑块的阴影在所有机型上都能画出来
+        Ui.softwareIfNeeded(this);   // 旧系统上让滑块的阴影也能画出来
     }
 
     public void setOnSelect(OnSelect cb) { this.cb = cb; }
@@ -67,6 +73,16 @@ public class Segmented extends View {
     }
 
     @Override
+    protected void onSizeChanged(int w, int h, int ow, int oh) {
+        super.onSizeChanged(w, h, ow, oh);
+        Context c = getContext();
+        float pad = Ui.dp(c, 4), vy = Ui.dp(c, 4);
+        float segW = (w - 2 * pad) / labels.length;
+        thumbShader = new LinearGradient(0, vy + pad, segW, h - vy - pad,
+                Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP);
+    }
+
+    @Override
     protected void onDraw(Canvas cv) {
         Context c = getContext();
         float w = getWidth(), h = getHeight(), pad = Ui.dp(c, 4);
@@ -79,15 +95,18 @@ public class Segmented extends View {
         rect.set(0, vy, w, h - vy);
         cv.drawRoundRect(rect, Ui.dp(c, 14), Ui.dp(c, 14), paint);
 
-        // 滑块
+        // 滑块：渐变按一段的大小建好，画的时候平移到当前位置
         float segW = (w - 2 * pad) / labels.length;
-        float l = pad + pos * segW, r = pad + (pos + 1) * segW;
-        paint.setShader(new LinearGradient(l, vy + pad, r, h - vy - pad, Ui.PRI2, Ui.PRI, Shader.TileMode.CLAMP));
+        float l = pad + pos * segW;
+        cv.save();
+        cv.translate(l, 0);
+        paint.setShader(thumbShader);
         paint.setShadowLayer(Ui.dp(c, 4), 0, Ui.dp(c, 2), 0x554F7CFF);
-        rect.set(l, vy + pad, r, h - vy - pad);
+        rect.set(0, vy + pad, segW, h - vy - pad);
         cv.drawRoundRect(rect, Ui.dp(c, 11), Ui.dp(c, 11), paint);
         paint.clearShadowLayer();
         paint.setShader(null);
+        cv.restore();
 
         // 文字（和可选的画幅图标）
         paint.setTextSize(Ui.sp(c, 15));
@@ -126,16 +145,56 @@ public class Segmented extends View {
             float segW = (getWidth() - 2 * pad) / labels.length;
             int idx = (int) ((e.getX() - pad) / segW);
             idx = Math.max(0, Math.min(labels.length - 1, idx));
-            if (idx != sel) {
-                setSelected(idx, true);
-                if (cb != null) cb.onSelect(idx);
-            }
+            choose(idx);
             performClick();
             return true;
         }
         return super.onTouchEvent(e);
     }
 
+    private void choose(int idx) {
+        if (idx == sel) return;
+        setSelected(idx, true);
+        if (cb != null) cb.onSelect(idx);
+    }
+
     @Override
     public boolean performClick() { return super.performClick(); }
+
+    // ---------------- 读屏（TalkBack） ----------------
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        StringBuilder all = new StringBuilder();
+        for (int i = 0; i < labels.length; i++) {
+            if (i > 0) all.append(" / ");
+            all.append(labels[i]);
+        }
+        info.setClassName("android.widget.RadioGroup");
+        info.setContentDescription(getContext().getString(
+                R.string.a11y_segment_state, all.toString(), labels[sel]));
+        for (int i = 0; i < labels.length; i++) {
+            info.addAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_BASE + i, labels[i]));
+        }
+    }
+
+    @Override
+    public boolean performAccessibilityAction(int action, Bundle args) {
+        if (action == AccessibilityNodeInfo.ACTION_CLICK) {
+            selectByReader((sel + 1) % labels.length);     // 双击：切到下一项
+            return true;
+        }
+        int i = action - ACTION_BASE;
+        if (i >= 0 && i < labels.length) {
+            selectByReader(i);
+            return true;
+        }
+        return super.performAccessibilityAction(action, args);
+    }
+
+    private void selectByReader(int idx) {
+        choose(idx);
+        announceForAccessibility(labels[sel]);
+    }
 }

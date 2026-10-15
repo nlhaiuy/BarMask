@@ -1,26 +1,23 @@
 package com.liubai.app;
 
-import android.animation.ObjectAnimator;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.PowerManager;
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
+import android.text.Spannable;
 import android.text.SpannableString;
-import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
@@ -33,8 +30,12 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import static com.liubai.app.Ui.lp;
 
 /**
  * 留白主页。
@@ -46,37 +47,33 @@ public class MainActivity extends Activity {
     private static final float[] RATIO_VALUES = {16f / 9f, 4f / 3f};
     private static final int[] STRENGTH_LAYERS = {1, 3};
 
+    /** 统计“已选应用里装了几个”要查系统，放到后台做，不卡界面。 */
+    private static final ExecutorService IO = Executors.newSingleThreadExecutor();
+
     private SharedPreferences sp;
-    private float density;
     private Vibrator vib;
     private boolean land;
+    private long lastTick;                 // 上一次触感的时间，用来节流
 
     private View dot;
-    private LinearLayout permBox;
+    private PermissionCard perms;
     private TextView statusTv, appsLink, resetBtn;
     private PreviewView preview;
     private PowerButton power;
     private Slider slider;
+    private Set<String> launchable;        // 桌面上能打开的应用包名（统计已选数量用）
     private final Handler repeat = new Handler(Looper.getMainLooper());
 
-    // 权限：0 悬浮窗、1 通知、2 后台运行、3 无障碍
-    private static final String[] PERM_NAMES = {"悬浮窗", "通知", "后台运行", "无障碍"};
-    private boolean awaitingA11y = false;
-
-    private int dp(float v) { return Math.round(v * density); }
-
-    private LinearLayout.LayoutParams lp(int w, int h) {
-        return new LinearLayout.LayoutParams(w, h);
-    }
+    private int dp(float v) { return Ui.px(this, v); }
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         sp = getSharedPreferences(MaskService.PREFS, MODE_PRIVATE);
-        density = getResources().getDisplayMetrics().density;
         vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
         land = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
         Ui.lightWindow(this);
+        launchable = queryLaunchable();
 
         final int screenW = getResources().getDisplayMetrics().widthPixels;
         final int rightW = land ? Math.round(screenW * 0.54f) : screenW;
@@ -138,7 +135,11 @@ public class MainActivity extends Activity {
         slp.weight = land ? 0.54f : 1f;
         root.addView(svWrap, slp);
 
-        buildPerms(col);
+        perms = new PermissionCard(this);
+        LinearLayout.LayoutParams plp = lp(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        plp.topMargin = dp(8);
+        col.addView(perms, plp);
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -188,7 +189,7 @@ public class MainActivity extends Activity {
         head.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("留白");
+        title.setText(R.string.app_name);
         title.setTextSize(land ? 28 : 34);
         title.setTextColor(Ui.TITLE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -237,7 +238,7 @@ public class MainActivity extends Activity {
         resetBtn.setTextColor(0xFFFFFFFF);
         resetBtn.setTypeface(Typeface.DEFAULT_BOLD);
         resetBtn.setGravity(Gravity.CENTER);
-        resetBtn.setContentDescription("归零");
+        resetBtn.setContentDescription(getString(R.string.reset_desc));
         // 蓝色实心圆：在白边、黑边上都看得清；视觉 36dp，外面再留 4dp，点击范围 44dp
         GradientDrawable rb = Ui.gradient(dp(18));
         rb.setShape(GradientDrawable.OVAL);
@@ -256,11 +257,11 @@ public class MainActivity extends Activity {
         LinearLayout fine = new LinearLayout(this);
         fine.setOrientation(LinearLayout.HORIZONTAL);
         fine.setGravity(Gravity.CENTER_VERTICAL);
-        TextView minus = stepButton("−", "减小", -1);
-        TextView plus = stepButton("+", "增大", 1);
+        TextView minus = stepButton("−", getString(R.string.step_minus_desc), -1);
+        TextView plus = stepButton("+", getString(R.string.step_plus_desc), 1);
 
         slider = new Slider(this);
-        slider.setContentDescription("宽度微调");
+        slider.setContentDescription(getString(R.string.fine_desc));
         applyRange();
         int off = Math.max(slider.getMin(), Math.min(Slider.MAX, sp.getInt(MaskService.KEY_OFFSET, 0)));
         slider.setValue(off);
@@ -339,12 +340,12 @@ public class MainActivity extends Activity {
         return t;
     }
 
-    private LinearLayout labelRow(String text, TextView right) {
+    private LinearLayout labelRow(int textRes, TextView right) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         TextView t = new TextView(this);
-        t.setText(text);
+        t.setText(textRes);
         t.setTextSize(14);
         t.setTextColor(Ui.INK);
         t.setTypeface(Typeface.DEFAULT_BOLD);
@@ -386,11 +387,12 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         lrp.topMargin = -dp(10);
         lrp.bottomMargin = -dp(10);
-        LinearLayout lr = labelRow("生效范围", appsLink);
+        LinearLayout lr = labelRow(R.string.row_scope, appsLink);
         lr.setMinimumHeight(dp(44));
         s.addView(lr, lrp);
 
-        Segmented seg = new Segmented(this, new String[]{"白名单", "全局"},
+        Segmented seg = new Segmented(this,
+                new String[]{getString(R.string.seg_whitelist), getString(R.string.seg_global)},
                 AutoMode.isEnabled(this) ? 0 : 1);
         seg.setOnSelect(i -> {
             sp.edit().putBoolean(AutoMode.KEY_AUTO, i == 0).apply();
@@ -403,7 +405,7 @@ public class MainActivity extends Activity {
 
     private void buildRatioRow(LinearLayout card) {
         LinearLayout s = section(card, false);
-        s.addView(labelRow("视频比例", null));
+        s.addView(labelRow(R.string.row_ratio, null));
 
         float cur = sp.getFloat(MaskService.KEY_RATIO, MaskService.DEFAULT_RATIO);
         int sel = Math.abs(RATIO_VALUES[1] - cur) < 0.001f ? 1 : 0;
@@ -428,10 +430,12 @@ public class MainActivity extends Activity {
 
     private void buildStrengthRow(LinearLayout card) {
         LinearLayout s = section(card, false);
-        s.addView(labelRow("遮盖强度", null));
+        s.addView(labelRow(R.string.row_strength, null));
 
         int curLayers = sp.getInt(MaskService.KEY_LAYERS, MaskService.DEFAULT_LAYERS);
-        Segmented seg = new Segmented(this, new String[]{"标准", "加强"}, curLayers >= 2 ? 1 : 0);
+        Segmented seg = new Segmented(this,
+                new String[]{getString(R.string.seg_standard), getString(R.string.seg_strong)},
+                curLayers >= 2 ? 1 : 0);
         seg.setOnSelect(i -> {
             sp.edit().putInt(MaskService.KEY_LAYERS, STRENGTH_LAYERS[i]).apply();
             changed();
@@ -484,13 +488,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (awaitingA11y) {
-            awaitingA11y = false;
-            // 从无障碍设置页回来还没开：多半是“无障碍”被系统置灰了
-            if (applicable(3) && missing(3)) showRestrictedHelp();
-        }
+        // 从无障碍设置页回来还没开：多半是“无障碍”被系统置灰了
+        if (perms.consumeAwaitingA11y() && perms.accessibilityMissing()) perms.showRestrictedHelp();
         updateUi(false);
         refreshAuto();
+        refreshLaunchableAsync();
     }
 
     // ---------------- 状态刷新 ----------------
@@ -500,7 +502,7 @@ public class MainActivity extends Activity {
         boolean on = AutoMode.isMaster(this);
         power.setOn(on, animate);
         preview.setOn(on);
-        statusTv.setText(on ? "已开启" : "已关闭");
+        statusTv.setText(on ? R.string.status_on : R.string.status_off);
         statusTv.setTextColor(on ? Ui.INK : Ui.DIM);
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.OVAL);
@@ -511,31 +513,22 @@ public class MainActivity extends Activity {
             g.setColor(0xFFC9CCD6);
         }
         dot.setBackground(g);
-        refreshPerms();
+        perms.refresh();
     }
 
     /** 白名单入口：只在白名单模式显示，位置不变所以界面不跳动。 */
     private void refreshAuto() {
         boolean whitelist = AutoMode.isEnabled(this);
         int n = installedSelectedCount();
-        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
         if (n == 0) {                     // 白名单模式下一个都没选 = 哪里都不显示，用橙色提醒
-            sb.append("未选择应用 ›");
-            sb.setSpan(new android.text.style.ForegroundColorSpan(0xFFD97706), 0, sb.length(),
-                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            SpannableString s = new SpannableString(getString(R.string.apps_none));
+            s.setSpan(new ForegroundColorSpan(0xFFD97706), 0, s.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            appsLink.setText(s);
         } else {
-            sb.append("已选 ");
-            int a = sb.length();
-            sb.append(String.valueOf(n)).append(" 个应用 ›");
-            int blueEnd = a + String.valueOf(n).length();
-            sb.setSpan(new android.text.style.ForegroundColorSpan(Ui.PRI), a, blueEnd,
-                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            sb.setSpan(new android.text.style.ForegroundColorSpan(Ui.PRI), sb.length() - 1, sb.length(),
-                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), a, blueEnd,
-                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            String num = String.valueOf(n);
+            appsLink.setText(Ui.highlightNumber(getString(R.string.apps_selected, num), num, true));
         }
-        appsLink.setText(sb);
         appsLink.setEnabled(whitelist);
         appsLink.setClickable(whitelist);
         appsLink.animate().cancel();
@@ -544,12 +537,37 @@ public class MainActivity extends Activity {
     }
 
     private int installedSelectedCount() {
-        PackageManager pm = getPackageManager();
+        Set<String> have = launchable;
         int n = 0;
         for (String pkg : AutoMode.selectedApps(this)) {
-            if (pm.getLaunchIntentForPackage(pkg) != null) n++;
+            if (have.contains(pkg)) n++;
         }
         return n;
+    }
+
+    /** 桌面上能打开的应用：一次查询拿到全部，比逐个包名去问快得多。 */
+    private Set<String> queryLaunchable() {
+        Set<String> s = new HashSet<>();
+        try {
+            PackageManager pm = getPackageManager();
+            Intent main = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+            for (ResolveInfo ri : pm.queryIntentActivities(main, 0)) {
+                s.add(ri.activityInfo.packageName);
+            }
+        } catch (Exception ignored) { }
+        return s;
+    }
+
+    /** 回到页面时在后台重新查一次（比如刚装 / 卸载了应用），有变化再刷新数字。 */
+    private void refreshLaunchableAsync() {
+        IO.execute(() -> {
+            Set<String> s = queryLaunchable();
+            runOnUiThread(() -> {
+                if (isDestroyed() || s.equals(launchable)) return;
+                launchable = s;
+                refreshAuto();
+            });
+        });
     }
 
     // ---------------- 总开关 ----------------
@@ -562,7 +580,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (!Settings.canDrawOverlays(this)) {
-            nudgePerms("先开启悬浮窗权限");
+            nudgePerms(getString(R.string.toast_need_overlay));
             return;
         }
         AutoMode.setMaster(this, true);
@@ -572,269 +590,50 @@ public class MainActivity extends Activity {
     /** 提醒：授权卡抖一下 + 一句提示 + 一下短震。 */
     private void nudgePerms(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-        if (permBox != null && permBox.getVisibility() == View.VISIBLE) {
-            ObjectAnimator.ofFloat(permBox, "translationX", 0, -dp(6), dp(6), -dp(4), dp(3), 0)
-                    .setDuration(420).start();
-        }
+        perms.shake();
         if (vib != null && vib.hasVibrator()) {
             vib.vibrate(VibrationEffect.createWaveform(new long[]{0, 8, 40, 8}, -1));
         }
     }
 
-    /** 设置有变化：让正在显示的遮罩立刻刷新。 */
+    /**
+     * 设置有变化：让正在显示的遮罩立刻刷新。
+     * 宽度 / 画幅 / 强度都不影响“该不该显示”，所以这里不用重新判断白名单。
+     */
     private void changed() {
-        preview.invalidate();
+        preview.refresh();
         // 服务正在运行时直接让它原地更新（不重启、不重建），拖动微调才不会闪
         if (MaskService.running && !MaskService.refresh()) {
             startForegroundService(new Intent(this, MaskService.class));
         }
-        AutoMode.evaluate(this);
     }
 
     /**
-     * 拖动微调时的触感：每 1dp 一下很轻的短震，每 10dp 稍实一点，
-     * 到 0 或者 ±100 时最明显，让人不用看也知道到了。
+     * 拖动微调时的触感：用系统的触感反馈（跟随系统的“触摸反馈”开关），
+     * 每 10dp 稍实一点，到 0 或者 ±100 时最明显，让人不用看也知道到了。
+     * 快速拖动时按时间节流，不会每一格都震。
      */
     private void tick(int o) {
         boolean edge = o == 0 || o == Slider.MAX || o == slider.getMin();
         boolean major = o % 10 == 0;
-        if (vib != null && vib.hasVibrator()) {
-            if (Build.VERSION.SDK_INT >= 26 && vib.hasAmplitudeControl()) {
-                vib.vibrate(VibrationEffect.createOneShot(
-                        edge ? 10 : major ? 6 : 3, edge ? 70 : major ? 36 : 14));
-                return;
-            }
-            if (Build.VERSION.SDK_INT >= 29 && (edge || major)) {
-                vib.vibrate(VibrationEffect.createPredefined(
-                        edge ? VibrationEffect.EFFECT_CLICK : VibrationEffect.EFFECT_TICK));
-                return;
-            }
+        long now = SystemClock.uptimeMillis();
+        if (!edge && now - lastTick < (major ? 16 : 32)) return;
+        lastTick = now;
+        int fb;
+        if (edge) {
+            fb = HapticFeedbackConstants.CONTEXT_CLICK;
+        } else if (Build.VERSION.SDK_INT >= 34) {
+            fb = major ? HapticFeedbackConstants.SEGMENT_TICK
+                    : HapticFeedbackConstants.SEGMENT_FREQUENT_TICK;
+        } else {
+            fb = major ? HapticFeedbackConstants.CONTEXT_CLICK : HapticFeedbackConstants.CLOCK_TICK;
         }
-        slider.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
-    }
-
-    // ---------------- 权限（全部手动，一项一个“开启”） ----------------
-
-    /** 这一项当前是否需要（通知仅 Android 13+，无障碍仅白名单模式）。 */
-    private boolean applicable(int i) {
-        if (i == 1) return Build.VERSION.SDK_INT >= 33;
-        if (i == 3) return AutoMode.isEnabled(this);
-        return true;
-    }
-
-    private boolean missing(int i) {
-        switch (i) {
-            case 0:
-                return !Settings.canDrawOverlays(this);
-            case 1:
-                return Build.VERSION.SDK_INT >= 33
-                        && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
-                        != PackageManager.PERMISSION_GRANTED;
-            case 2:
-                return !((PowerManager) getSystemService(POWER_SERVICE))
-                        .isIgnoringBatteryOptimizations(getPackageName());
-            default:
-                return !AutoMode.isAccessibilityEnabled(this);
-        }
-    }
-
-    /** 必需的：悬浮窗；白名单模式下还有无障碍。其余是可选的。 */
-    private boolean required(int i) {
-        return i == 0 || i == 3;
-    }
-
-    private String permDesc(int i) {
-        return i == 0 ? "在视频上方显示遮罩" : "白名单模式下，识别当前打开的视频软件";
-    }
-
-    private void buildPerms(LinearLayout col) {
-        permBox = new LinearLayout(this);
-        permBox.setOrientation(LinearLayout.VERTICAL);
-        permBox.setBackground(Ui.round(Ui.WARN_BG, dp(22)));
-        Ui.lift(permBox, 3, 0x337A5A12, 0x557A5A12);
-        LinearLayout.LayoutParams plp = lp(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        plp.topMargin = dp(8);
-        col.addView(permBox, plp);
-    }
-
-    /** 只列出还没开的权限；回到页面时刷新，开齐后整块收起。 */
-    private void refreshPerms() {
-        if (permBox == null) return;
-        permBox.removeAllViews();
-        List<Integer> req = new ArrayList<>(), opt = new ArrayList<>();
-        for (int i = 0; i < PERM_NAMES.length; i++) {
-            if (applicable(i) && missing(i)) (required(i) ? req : opt).add(i);
-        }
-        if (req.isEmpty() && opt.isEmpty()) {
-            permBox.setVisibility(View.GONE);
-            return;
-        }
-        permBox.setVisibility(View.VISIBLE);
-        for (int k = 0; k < req.size(); k++) permBox.addView(permRow(req.get(k), k > 0));
-        if (!opt.isEmpty()) permBox.addView(optRow(opt, !req.isEmpty()));
-    }
-
-    private void divider(boolean show) {
-        if (!show) return;
-        View v = new View(this);
-        v.setBackgroundColor(Ui.WARN_LINE);
-        permBox.addView(v, lp(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f))));
-    }
-
-    private View permRow(int i, boolean divided) {
-        divider(divided);
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), dp(13), dp(14), dp(13));
-
-        LinearLayout text = new LinearLayout(this);
-        text.setOrientation(LinearLayout.VERTICAL);
-        TextView name = new TextView(this);
-        name.setText(PERM_NAMES[i]);
-        name.setTextSize(14);
-        name.setTextColor(Ui.WARN_TX);
-        name.setTypeface(Typeface.DEFAULT_BOLD);
-        text.addView(name);
-        TextView desc = new TextView(this);
-        desc.setText(permDesc(i));
-        desc.setTextSize(12);
-        desc.setTextColor(Ui.WARN_SUB);
-        desc.setPadding(0, dp(2), 0, 0);
-        text.addView(desc);
-        LinearLayout.LayoutParams tlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tlp.weight = 1f;
-        row.addView(text, tlp);
-
-        TextView go = new TextView(this);
-        go.setText("开启");
-        go.setTextSize(13);
-        go.setTextColor(0xFFFFFFFF);
-        go.setTypeface(Typeface.DEFAULT_BOLD);
-        go.setGravity(Gravity.CENTER);
-        go.setPadding(dp(16), dp(8), dp(16), dp(8));
-        go.setBackground(Ui.gradient(dp(20)));
-        Ui.lift(go, 3, 0x404F7CFF, 0x884F7CFF);
-        go.setOnClickListener(v -> launch(i));
-        Ui.press(go, 0.94f);
-        LinearLayout.LayoutParams glp = lp(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        glp.leftMargin = dp(12);
-        row.addView(go, glp);
-        return wrapRow(row);
-    }
-
-    private View optRow(List<Integer> opt, boolean divided) {
-        divider(divided);
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), dp(11), dp(16), dp(11));
-        TextView label = new TextView(this);
-        label.setText("可选");
-        label.setTextSize(12);
-        label.setTextColor(Ui.WARN_SUB);
-        row.addView(label);
-        for (int i : opt) {
-            SpannableString s = new SpannableString("＋ " + PERM_NAMES[i]);
-            s.setSpan(new ForegroundColorSpan(Ui.PRI), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            TextView chip = new TextView(this);
-            chip.setText(s);
-            chip.setTextSize(12);
-            chip.setTextColor(Ui.WARN_TX);
-            chip.setTypeface(Typeface.DEFAULT_BOLD);
-            chip.setPadding(dp(11), dp(6), dp(12), dp(6));
-            GradientDrawable cb = Ui.round(0xFFFFFFFF, dp(20));
-            cb.setStroke(Math.max(1, dp(1)), 0x247A5A12);
-            chip.setBackground(cb);
-            Ui.lift(chip, 2, 0x337A5A12, 0x557A5A12);
-            chip.setOnClickListener(v -> launch(i));
-            Ui.press(chip, 0.94f);
-            LinearLayout.LayoutParams clp = lp(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            clp.leftMargin = dp(8);
-            row.addView(chip, clp);
-        }
-        return wrapRow(row);
-    }
-
-    private View wrapRow(LinearLayout row) {
-        row.setLayoutParams(lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        return row;
-    }
-
-    /** 一项权限，直达对应的系统授权页。只在你点“开启”时才会跳。 */
-    private void launch(int i) {
-        try {
-            switch (i) {
-                case 0:
-                    startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:" + getPackageName())));
-                    break;
-                case 1:
-                    requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
-                    break;
-                case 2:
-                    try {
-                        startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                Uri.parse("package:" + getPackageName())));
-                    } catch (Exception e) {
-                        startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-                    }
-                    break;
-                default:
-                    // 开启成功后，留白会自己跳回前台，不用手动返回
-                    sp.edit().putBoolean(AutoAccessibilityService.KEY_RETURN, true).apply();
-                    awaitingA11y = true;
-                    openAccessibility();
-            }
-        } catch (Exception e) {
-            // 实在打不开专用页面，就去应用信息页，让用户手动设置
-            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:" + getPackageName())));
-        }
+        slider.performHapticFeedback(fb);
     }
 
     @Override
-    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
-        super.onRequestPermissionsResult(code, perms, results);
-        refreshPerms();
-    }
-
-    /**
-     * 无障碍直达：Android 14+ 直接打开“留白”自己的无障碍详情页，
-     * 更低版本打开无障碍列表并把“留白”那一项高亮出来。
-     */
-    private void openAccessibility() {
-        String flat = new ComponentName(this, AutoAccessibilityService.class).flattenToString();
-        if (Build.VERSION.SDK_INT >= 34) {
-            try {
-                Intent direct = new Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS");
-                direct.putExtra("android.intent.extra.COMPONENT_NAME", flat);
-                startActivity(direct);
-                return;
-            } catch (Exception ignored) { /* 个别系统没有这个页面，退回列表 */ }
-        }
-        Intent list = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-        Bundle args = new Bundle();
-        args.putString(":settings:fragment_args_key", flat);
-        list.putExtra(":settings:fragment_args_key", flat);
-        list.putExtra(":settings:show_fragment_args", args);
-        startActivity(list);
-    }
-
-    /** 无障碍没开成功：最常见的原因是系统对“非商店安装”的软件置灰了该选项。 */
-    private void showRestrictedHelp() {
-        new AlertDialog.Builder(this)
-                .setTitle("无障碍选项是灰色的")
-                .setMessage("1. 打开应用信息页\n"
-                        + "2. 右上角 ⋮ → 允许受限制的设置\n"
-                        + "3. 回到留白，再点一次“开启”")
-                .setPositiveButton("应用信息", (d, w) -> startActivity(new Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:" + getPackageName()))))
-                .setNegativeButton("取消", null)
-                .show();
+    public void onRequestPermissionsResult(int code, String[] results, int[] grants) {
+        super.onRequestPermissionsResult(code, results, grants);
+        perms.refresh();
     }
 }

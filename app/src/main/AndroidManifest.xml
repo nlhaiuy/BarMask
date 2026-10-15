@@ -67,6 +67,11 @@
             </intent-filter>
         </service>
 
+        <!-- 通知栏“关闭遮罩”按钮 -->
+        <receiver
+            android:name=".MaskActionReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".AppPickerActivity"
             android:exported="false" />

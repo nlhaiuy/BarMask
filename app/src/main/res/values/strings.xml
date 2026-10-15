@@ -4,4 +4,63 @@
     <string name="shortcut_short">开关留白</string>
     <string name="shortcut_long">开关留白</string>
     <string name="accessibility_desc">仅用于识别当前打开的应用，在白名单应用中自动开启留白，不读取屏幕内容。</string>
+
+    <!-- 通知 -->
+    <string name="notif_channel">遮罩状态</string>
+    <string name="notif_title">遮罩已开启</string>
+    <string name="notif_text">点按进入设置</string>
+    <string name="notif_action_off">关闭遮罩</string>
+
+    <!-- 主页 -->
+    <string name="status_on">已开启</string>
+    <string name="status_off">已关闭</string>
+    <string name="reset_desc">归零</string>
+    <string name="step_minus_desc">减小</string>
+    <string name="step_plus_desc">增大</string>
+    <string name="fine_desc">宽度微调</string>
+    <string name="row_scope">生效范围</string>
+    <string name="row_ratio">视频比例</string>
+    <string name="row_strength">遮盖强度</string>
+    <string name="seg_whitelist">白名单</string>
+    <string name="seg_global">全局</string>
+    <string name="seg_standard">标准</string>
+    <string name="seg_strong">加强</string>
+    <string name="apps_none">未选择应用 ›</string>
+    <string name="apps_selected">已选 %1$s 个应用 ›</string>
+    <string name="toast_need_overlay">先开启悬浮窗权限</string>
+    <string name="power_on">开启遮罩</string>
+    <string name="power_off">关闭遮罩</string>
+
+    <!-- 授权提示 -->
+    <string name="perm_overlay">悬浮窗</string>
+    <string name="perm_notification">通知</string>
+    <string name="perm_background">后台运行</string>
+    <string name="perm_accessibility">无障碍</string>
+    <string name="perm_overlay_desc">在视频上方显示遮罩</string>
+    <string name="perm_accessibility_desc">白名单模式下，识别当前打开的视频软件</string>
+    <string name="perm_enable">开启</string>
+    <string name="perm_optional">可选</string>
+    <string name="restricted_title">无障碍选项是灰色的</string>
+    <string name="restricted_message">1. 打开应用信息页\n2. 右上角 ⋮ → 允许受限制的设置\n3. 回到留白，再点一次“开启”</string>
+    <string name="restricted_app_info">应用信息</string>
+    <string name="cancel">取消</string>
+
+    <!-- 开关页 -->
+    <string name="toggle_need_overlay">请先允许悬浮窗权限</string>
+
+    <!-- 白名单页 -->
+    <string name="back_desc">返回</string>
+    <string name="picker_title">白名单</string>
+    <string name="picker_search_hint">搜索应用</string>
+    <string name="picker_select_recommended">勾选推荐应用</string>
+    <string name="picker_clear_all">取消全部勾选</string>
+    <string name="picker_snack_recommended">已勾选推荐的视频应用</string>
+    <string name="picker_snack_cleared">已取消全部勾选</string>
+    <string name="undo">撤销</string>
+    <string name="recommended_tag">推荐</string>
+    <string name="picker_count">已选 %1$s 个</string>
+
+    <!-- 读屏（TalkBack） -->
+    <string name="a11y_slider_value">%1$d dp</string>
+    <string name="a11y_segment_state">%1$s，当前：%2$s</string>
 </resources>

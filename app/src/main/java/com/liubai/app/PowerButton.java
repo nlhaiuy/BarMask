@@ -32,7 +32,7 @@ public class PowerButton extends TextView {
     public void setOn(boolean on, boolean animate) {
         float to = on ? 1f : 0f;
         if (anim != null) anim.cancel();
-        setText(on ? "关闭遮罩" : "开启遮罩");
+        setText(on ? R.string.power_off : R.string.power_on);
         if (!animate || !isLaidOut()) { t = to; apply(); return; }
         anim = ValueAnimator.ofFloat(t, to);
         anim.setDuration(300);
