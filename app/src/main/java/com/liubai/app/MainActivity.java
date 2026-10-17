@@ -489,6 +489,7 @@ public class MainActivity extends Activity {
             // 从无障碍设置页回来还没开：多半是“无障碍”被系统置灰了
             if (applicable(3) && missing(3)) showRestrictedHelp();
         }
+        AutoMode.evaluate(this);   // 重启后总开关还是开着，但遮罩没在运行：这里补上
         updateUi(false);
         refreshAuto();
     }
