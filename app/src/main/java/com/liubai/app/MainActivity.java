@@ -479,6 +479,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         repeat.removeCallbacksAndMessages(null);
+        AutoAccessibilityService.onStateChanged = null;
     }
 
     @Override
@@ -493,12 +494,6 @@ public class MainActivity extends Activity {
         AutoMode.evaluate(this);   // 重启后总开关还是开着，但遮罩没在运行：这里补上
         updateUi(false);
         refreshAuto();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        AutoAccessibilityService.onStateChanged = null;
     }
 
     // ---------------- 状态刷新 ----------------
