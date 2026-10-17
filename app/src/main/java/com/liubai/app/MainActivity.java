@@ -691,29 +691,29 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), dp(13), dp(14), dp(13));
+        row.setPadding(dp(18), dp(14), dp(14), dp(14));
 
+        boolean stale = i == 3 && AutoMode.isAccessibilityEnabled(this);
         LinearLayout text = new LinearLayout(this);
         text.setOrientation(LinearLayout.VERTICAL);
         TextView name = new TextView(this);
-        name.setText(PERM_NAMES[i]);
+        name.setText(stale ? "无障碍服务未连接" : PERM_NAMES[i]);
         name.setTextSize(14);
         name.setTextColor(Ui.WARN_TX);
         name.setTypeface(Typeface.DEFAULT_BOLD);
         text.addView(name);
         TextView desc = new TextView(this);
-        boolean stale = i == 3 && AutoMode.isAccessibilityEnabled(this);
-        desc.setText(stale ? "开关是开的，但系统没有连上服务：关闭再打开一次" : permDesc(i));
+        desc.setText(stale ? "在设置里关闭再打开即可" : permDesc(i));
         desc.setTextSize(12);
         desc.setTextColor(Ui.WARN_SUB);
-        desc.setPadding(0, dp(2), 0, 0);
+        desc.setPadding(0, dp(3), 0, 0);
         text.addView(desc);
         LinearLayout.LayoutParams tlp = lp(0, ViewGroup.LayoutParams.WRAP_CONTENT);
         tlp.weight = 1f;
         row.addView(text, tlp);
 
         TextView go = new TextView(this);
-        go.setText(stale ? "重新开启" : "开启");
+        go.setText(stale ? "去重开" : "开启");
         go.setTextSize(13);
         go.setTextColor(0xFFFFFFFF);
         go.setTypeface(Typeface.DEFAULT_BOLD);
