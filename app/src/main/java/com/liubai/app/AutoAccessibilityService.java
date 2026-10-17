@@ -46,9 +46,16 @@ public class AutoAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
-        if (e == null || e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (e == null) return;
+        int t = e.getEventType();
         CharSequence pkg = e.getPackageName();
-        if (pkg != null) AutoMode.onForeground(this, pkg.toString(), e.getClassName());
+        if (pkg == null) return;
+        if (t == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            AutoMode.onForeground(this, pkg.toString(), e.getClassName());
+        } else if (t == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED && !AutoMode.hasForeground()) {
+            // 重启 / 更新后服务刚连上，还没等到窗口切换：用界面内容变化的事件先认出当前前台软件
+            AutoMode.onForeground(this, pkg.toString());
+        }
     }
 
     @Override

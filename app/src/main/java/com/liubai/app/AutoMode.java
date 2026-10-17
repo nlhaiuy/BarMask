@@ -161,6 +161,8 @@ public final class AutoMode {
         onForeground(c, pkg);
     }
 
+    public static boolean hasForeground() { return !fg.isEmpty(); }
+
     /** 无障碍服务：前台窗口变化。 */
     public static void onForeground(Context c, String pkg) {
         if (pkg == null || pkg.isEmpty()) return;
