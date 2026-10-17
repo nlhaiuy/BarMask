@@ -22,9 +22,21 @@ public class AutoAccessibilityService extends AccessibilityService {
     };
     private boolean receiverRegistered = false;
 
+    /** 服务是否真的连上了（设置里开关是开的，不代表系统已经把服务连起来）。 */
+    public static volatile boolean connected = false;
+    /** 连上 / 断开时通知界面刷新。 */
+    public static volatile Runnable onStateChanged;
+
+    private static void notifyState() {
+        Runnable r = onStateChanged;
+        if (r != null) r.run();
+    }
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        connected = true;
+        notifyState();
 
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_SCREEN_OFF);
@@ -62,7 +74,16 @@ public class AutoAccessibilityService extends AccessibilityService {
     public void onInterrupt() { }
 
     @Override
+    public boolean onUnbind(Intent intent) {
+        connected = false;
+        notifyState();
+        return super.onUnbind(intent);
+    }
+
+    @Override
     public void onDestroy() {
+        connected = false;
+        notifyState();
         if (receiverRegistered) {
             try {
                 unregisterReceiver(screenReceiver);

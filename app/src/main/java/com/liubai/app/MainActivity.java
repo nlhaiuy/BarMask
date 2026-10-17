@@ -487,11 +487,18 @@ public class MainActivity extends Activity {
         if (awaitingA11y) {
             awaitingA11y = false;
             // 从无障碍设置页回来还没开：多半是“无障碍”被系统置灰了
-            if (applicable(3) && missing(3)) showRestrictedHelp();
+            if (applicable(3) && !AutoMode.isAccessibilityEnabled(this)) showRestrictedHelp();
         }
+        AutoAccessibilityService.onStateChanged = () -> runOnUiThread(this::refreshPerms);
         AutoMode.evaluate(this);   // 重启后总开关还是开着，但遮罩没在运行：这里补上
         updateUi(false);
         refreshAuto();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        AutoAccessibilityService.onStateChanged = null;
     }
 
     // ---------------- 状态刷新 ----------------
@@ -635,7 +642,8 @@ public class MainActivity extends Activity {
                 return !((PowerManager) getSystemService(POWER_SERVICE))
                         .isIgnoringBatteryOptimizations(getPackageName());
             default:
-                return !AutoMode.isAccessibilityEnabled(this);
+                // 开关是开的但服务没连上（重启 / 更新后常见）也算没开好
+                return !AutoMode.isAccessibilityEnabled(this) || !AutoAccessibilityService.connected;
         }
     }
 
@@ -699,7 +707,8 @@ public class MainActivity extends Activity {
         name.setTypeface(Typeface.DEFAULT_BOLD);
         text.addView(name);
         TextView desc = new TextView(this);
-        desc.setText(permDesc(i));
+        boolean stale = i == 3 && AutoMode.isAccessibilityEnabled(this);
+        desc.setText(stale ? "开关是开的，但系统没有连上服务：关闭再打开一次" : permDesc(i));
         desc.setTextSize(12);
         desc.setTextColor(Ui.WARN_SUB);
         desc.setPadding(0, dp(2), 0, 0);
@@ -709,7 +718,7 @@ public class MainActivity extends Activity {
         row.addView(text, tlp);
 
         TextView go = new TextView(this);
-        go.setText("开启");
+        go.setText(stale ? "重新开启" : "开启");
         go.setTextSize(13);
         go.setTextColor(0xFFFFFFFF);
         go.setTypeface(Typeface.DEFAULT_BOLD);
