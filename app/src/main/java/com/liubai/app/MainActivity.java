@@ -55,6 +55,8 @@ public class MainActivity extends Activity {
     private LinearLayout permBox;
     private TextView statusTv, appsLink, resetBtn;
     private PreviewView preview;
+    private LinearLayout settingsCard;
+    private LinearLayout.LayoutParams settingsLp;   // 设置卡的上边距：授权卡显示时 12dp，收起时补回 16dp
     private PowerButton power;
     private Slider slider;
     private final Handler repeat = new Handler(Looper.getMainLooper());
@@ -118,7 +120,7 @@ public class MainActivity extends Activity {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         if (land) col.setPadding(dp(8), dp(14), dp(20), dp(84));
-        else col.setPadding(dp(20), dp(6), dp(20), dp(100));
+        else col.setPadding(dp(20), 0, dp(20), dp(100));
         sv.addView(col, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -147,6 +149,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams clp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         clp.topMargin = dp(10);
+        settingsLp = clp;
+        settingsCard = card;
         col.addView(card, clp);
 
         buildModeRow(card);
@@ -658,7 +662,7 @@ public class MainActivity extends Activity {
         Ui.lift(permBox, 3, 0x337A5A12, 0x557A5A12);
         LinearLayout.LayoutParams plp = lp(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        plp.topMargin = dp(8);
+        plp.topMargin = dp(land ? 8 : 3);
         col.addView(permBox, plp);
     }
 
@@ -670,7 +674,15 @@ public class MainActivity extends Activity {
         for (int i = 0; i < PERM_NAMES.length; i++) {
             if (applicable(i) && missing(i)) (required(i) ? req : opt).add(i);
         }
-        if (req.isEmpty() && opt.isEmpty()) {
+        boolean none = req.isEmpty() && opt.isEmpty();
+        if (settingsLp != null && !land) {
+            int want = dp(none ? 16 : 12);
+            if (settingsLp.topMargin != want) {
+                settingsLp.topMargin = want;
+                settingsCard.requestLayout();
+            }
+        }
+        if (none) {
             permBox.setVisibility(View.GONE);
             return;
         }
